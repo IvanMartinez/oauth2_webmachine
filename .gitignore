@@ -3,3 +3,10 @@ deps
 *.o
 *.beam
 *.plt
+rebar
+.project
+.settings
+/ebin
+*.dump
+buildplt
+dialyzer*

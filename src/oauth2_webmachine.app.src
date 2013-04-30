@@ -1,0 +1,18 @@
+%%-*- mode: erlang -*-
+{application, oauth2_webmachine,
+ [
+  {description, "oauth2_webmachine"},
+  {vsn, "1"},
+  {modules, []},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  inets,
+                  crypto,
+                  mochiweb,
+                  webmachine
+                 ]},
+  {mod, { oauth2_webmachine_app, []}},
+  {env, []}
+ ]}.

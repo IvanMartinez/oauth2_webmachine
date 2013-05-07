@@ -9,9 +9,13 @@
 %% API functions
 %% ====================================================================
 
--export([parse_body/1, get_grant_type/1, get_response_type/1, get_owner_credentials/1, get_client_id/1, get_client_credentials/2, get_scope/1]).
--export([access_token_response/6, invalid_client_response/2, invalid_grant_response/2, invalid_request_response/2, 
-         invalid_scope_response/2, unsupported_grant_type_response/2, unsupported_response_type_response/2]).
+-export([parse_body/1, get_grant_type/1, get_response_type/1, 
+         get_owner_credentials/1, get_client_id/1, get_client_credentials/2, 
+         get_redirect_uri/1, get_scope/1, get_state/1, get_request_id/1]).
+-export([access_token_response/6, invalid_client_response/2, 
+         invalid_grant_response/2, invalid_request_response/2, 
+         invalid_scope_response/2, unsupported_grant_type_response/2, 
+         unsupported_response_type_response/2]).
 
 -spec parse_body(Request :: wm_reqdata()) ->
           list(string()).
@@ -27,28 +31,28 @@ parse_body(Request) ->
             mochiweb_util:parse_qs(Body)
     end.
 
--spec get_client_id(ParsedBody :: list(string())) ->
+-spec get_client_id(Params :: list(string())) ->
           binary() | undefined.
 get_client_id([]) ->
     undefined;
-get_client_id(Id) ->
-    case lists:keyfind("client_id", 1, Id) of
+get_client_id(Params) ->
+    case lists:keyfind("client_id", 1, Params) of
         {"client_id", Id} ->
             list_to_binary(Id);
         false ->
             undefined
     end.
 
--spec get_client_credentials(ParsedBody :: list(string()), Request :: wm_reqdata()) ->
+-spec get_client_credentials(Params :: list(string()), Request :: wm_reqdata()) ->
           {binary(), binary()} | undefined.
-get_client_credentials(ParsedBody, #wm_reqdata{} = Request) ->
+get_client_credentials(Params, #wm_reqdata{} = Request) ->
     case wrq:get_req_header("Authorization", Request) of
         "Basic " ++ B64String ->
             b64_credentials(B64String);
         undefined ->
-            case lists:keyfind("client_id", 1, ParsedBody) of
+            case lists:keyfind("client_id", 1, Params) of
                 {"client_id", Id} ->
-                    case lists:keyfind("client_secret", 1, ParsedBody) of
+                    case lists:keyfind("client_secret", 1, Params) of
                         {"client_secret", Secret} ->
                             {list_to_binary(Id), list_to_binary(Secret)};
                         false ->
@@ -56,15 +60,17 @@ get_client_credentials(ParsedBody, #wm_reqdata{} = Request) ->
                         end;
                 false ->
                     undefined
-            end
+            end;
+        _ ->
+            undefined
     end.
 
--spec get_grant_type(ParsedBody :: list(string())) ->
+-spec get_grant_type(Params :: list(string())) ->
           authorization_code | client_credentials | password | undefined | unsupported.
 get_grant_type([]) ->
     undefined;
-get_grant_type(ParsedBody) ->
-    case lists:keyfind("grant_type", 1, ParsedBody) of
+get_grant_type(Params) ->
+    case lists:keyfind("grant_type", 1, Params) of
         {"grant_type", "authorization_code"} ->
             authorization_code;
         {"grant_type", "client_credentials"} ->
@@ -77,26 +83,26 @@ get_grant_type(ParsedBody) ->
             undefined
     end.
 
--spec get_response_type(ParsedBody :: list(string())) ->
+-spec get_response_type(Params :: list(string())) ->
           code | undefined | unsupported.
 get_response_type([]) ->
     undefined;
-get_response_type(ParsedBody) ->
-    case lists:keyfind("response_type", 1, ParsedBody) of
+get_response_type(Params) ->
+    case lists:keyfind("response_type", 1, Params) of
         {"response_type", "code"} ->
             code;
-        {"grant_type", _} ->
+        {"response_type", _} ->
             unsupported;
         false ->
             undefined
     end.
 
--spec get_owner_credentials(ParsedBody :: list(string())) ->
+-spec get_owner_credentials(Params :: list(string())) ->
           {binary(), binary()} | undefined.
-get_owner_credentials(ParsedBody) ->
-    case lists:keyfind("username", 1, ParsedBody) of
+get_owner_credentials(Params) ->
+    case lists:keyfind("username", 1, Params) of
         {"username", Name} ->
-            case lists:keyfind("password", 1, ParsedBody) of
+            case lists:keyfind("password", 1, Params) of
                 {"password", Password} ->
                     {list_to_binary(Name), list_to_binary(Password)};
                 false ->
@@ -106,16 +112,52 @@ get_owner_credentials(ParsedBody) ->
             undefined
     end.
 
--spec get_scope(ParsedBody :: list(string())) ->
+-spec get_redirect_uri(Params :: list(string())) ->
+          binary() | undefined.
+get_redirect_uri([]) ->
+    undefined;
+get_redirect_uri(Params) ->
+    case lists:keyfind("redirect_uri", 1, Params) of
+        {"redirect_uri", Uri} ->
+            list_to_binary(Uri);
+        false ->
+            undefined
+    end.
+
+-spec get_scope(Params :: list(string())) ->
           [binary()] | [] | undefined.
 get_scope([]) ->
     undefined;
-get_scope(ParsedBody) ->
-    case lists:keyfind("scope", 1, ParsedBody) of
+get_scope(Params) ->
+    case lists:keyfind("scope", 1, Params) of
         {"scope", ""} ->
             [];
         {"scope", ScopeString} ->
             [list_to_binary(X) || X <- string:tokens(ScopeString, " ")];
+        false ->
+            undefined
+    end.
+
+-spec get_state(Params :: list(string())) ->
+          binary() | undefined.
+get_state([]) ->
+    undefined;
+get_state(Params) ->
+    case lists:keyfind("state", 1, Params) of
+        {"state", State} ->
+            list_to_binary(State);
+        false ->
+            undefined
+    end.
+
+-spec get_request_id(Params :: list(string())) ->
+          binary() | undefined.
+get_request_id([]) ->
+    undefined;
+get_request_id(Params) ->
+    case lists:keyfind("request_id", 1, Params) of
+        {"request_id", Id} ->
+            list_to_binary(Id);
         false ->
             undefined
     end.

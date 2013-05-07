@@ -26,35 +26,28 @@
 
 -module(oauth2_ets_backend).
 
+-include("include/oauth2_request.hrl").
+
 %%% API
--export([
-         start/0
-         ,stop/0
-         ,add_user/2
-         ,add_user/3
-         ,delete_user/1
-         ,add_client/4
-         ,delete_client/1
+-export([start/0, stop/0, add_user/2, add_user/3, delete_user/1, add_client/4, delete_client/1,
+         store_request/4, retrieve_request/1
         ]).
 
 %%% OAuth2 backend functionality
--export([
-         authenticate_username_password/2
-         ,authenticate_client/2
-         ,associate_access_token/2
-         ,resolve_access_token/1
-         ,get_redirection_uri/1
-         ,verify_resowner_scope/2
-         ,verify_client_scope/2
+-export([authenticate_username_password/2, authenticate_client/2, associate_access_token/2, 
+         resolve_access_token/1, get_client_identity/1, get_redirection_uri/1, verify_resowner_scope/2,
+         verify_client_scope/2
         ]).
 
 -define(ACCESS_TOKEN_TABLE, access_tokens).
 -define(USER_TABLE, users).
 -define(CLIENT_TABLE, clients).
+-define(REQUEST_TABLE, requests).
 
 -define(TABLES, [?ACCESS_TOKEN_TABLE,
                  ?USER_TABLE,
-                 ?CLIENT_TABLE]).
+                 ?CLIENT_TABLE,
+                 ?REQUEST_TABLE]).
 
 -record(client, {
           client_id     :: binary(),
@@ -100,6 +93,20 @@ add_client(Id, Secret, RedirectUri, Scope) ->
 
 delete_client(Id) ->
     delete(?CLIENT_TABLE, Id).
+
+store_request(ClientId, RedirectURI, Scope, State) ->
+    RequestId = oauth2_token:generate(),
+    put(?REQUEST_TABLE, RequestId, #oauth2_request{client_id = ClientId, redirect_uri = RedirectURI,
+                                            scope = Scope, state = State}),
+    RequestId.
+
+retrieve_request(RequestId) ->
+    case get(?REQUEST_TABLE, RequestId) of
+        {ok, Request} ->
+            {ok, Request};
+        {error, notfound} ->
+            {error, notfound}
+    end.
 
 %%%===================================================================
 %%% OAuth2 backend functions
@@ -148,6 +155,14 @@ get_redirection_uri(ClientId) ->
             Error
     end.
 
+get_client_identity(ClientId) ->
+    case get(?CLIENT_TABLE, ClientId) of
+        {ok, Identity} ->
+            {ok, Identity};
+        Error = {error, notfound} ->
+            Error
+    end.
+
 verify_resowner_scope(#user{scope = RegisteredScope}, undefined) ->
     {ok, RegisteredScope};
 verify_resowner_scope(#user{scope = _RegisteredScope}, []) ->
@@ -156,7 +171,6 @@ verify_resowner_scope(#user{scope = []}, _Scope) ->
     {error, invalid_scope};
 verify_resowner_scope(#user{scope = RegisteredScope}, Scope) ->
     case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), oauth2_priv_set:new(RegisteredScope)) of
-    %%case lists:subtract(Scope, RegisteredScope) of
         true ->
             {ok, Scope};
         false ->
@@ -171,7 +185,6 @@ verify_client_scope(#client{scope = []}, _Scope) ->
     {error, invalid_scope};
 verify_client_scope(#client{scope = RegisteredScope}, Scope) ->
     case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), oauth2_priv_set:new(RegisteredScope)) of
-    %%case lists:subtract(Scope, RegisteredScope) of
         true ->
             {ok, Scope};
         false ->

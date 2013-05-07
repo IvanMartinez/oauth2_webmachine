@@ -2,7 +2,7 @@
 %% @copyright YYYY author.
 %% @doc Example webmachine_resource.
 
--module(implicit_token_resource).
+-module(implicit_token).
 -export([init/1, resource_exists/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").

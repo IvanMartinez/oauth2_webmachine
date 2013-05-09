@@ -3,7 +3,8 @@
 %% @doc Example webmachine_resource.
 
 -module(authorization_code).
--export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, process_post/2]).
+-export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, 
+         process_post/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
 
@@ -27,13 +28,19 @@ process_post(ReqData, State) ->
 -spec process(Params :: list(string())) ->
     {non_neg_integer(), binary()}.
 process(Params) ->
-    error_logger:info_msg("Params ~p~n", [Params]),
     case oauth2_wrq:get_response_type(Params) of
         code ->
             case oauth2_wrq:get_client_id(Params) of
                 undefined ->
                     {400, html:bad_request()};
                 ClientId ->
+                    case oauth2_ets_backend:get_redirection_uri(ClientId) of
+                        {error, _} ->
+                            {403, html:unauthorized_client()};
+                        {ok, []} ->
+                            {403, html:unauthorized_client()};
+                        {ok, RedirectionUris} ->
+                            
                     RedirectUri = oauth2_wrq:get_redirect_uri(Params),
                     Scope = oauth2_wrq:get_scope(Params),        
                     ScopeString = case lists:keyfind("scope", 1, Params) of
@@ -45,8 +52,12 @@ process(Params) ->
                             "default"
                     end,
                     StateParam = oauth2_wrq:get_state(Params),
-                    RequestId = oauth2_ets_backend:store_request(ClientId, RedirectUri, Scope, StateParam),
-                    {200, html:authorization_form(ClientId, ScopeString, RequestId)}
+                    RequestId = oauth2_ets_backend:store_request(ClientId, 
+                                                                 RedirectUri, 
+                                                                 Scope, 
+                                                                 StateParam),
+                    {200, html:authorization_form(ClientId, ScopeString, 
+                                                  RequestId)}
             end;
         undefined ->
             {400, html:bad_request()};

@@ -3,7 +3,8 @@
 %% @doc Example webmachine_resource.
 
 -module(html).
--export([authorization_form/3, bad_request/0, unsupported_response_type/0, invalid_client/0, unauthorized/0,
+-export([authorization_form/3, bad_request/0, unsupported_response_type/0, 
+         invalid_client/0, unauthorized/0, unauthorized_client/0,
          request_timeout/0]).
 
 -spec authorization_form(ClientId  :: string() | binary(),
@@ -37,6 +38,10 @@ invalid_client() ->
 -spec unauthorized() -> binary().
 unauthorized() ->
     <<"<html><body>Unauthorized</body></html>">>.
+
+-spec unauthorized_client() -> binary().
+unauthorized() ->
+    <<"<html><body>Unauthorized client</body></html>">>.
 
 -spec request_timeout() -> binary().
 request_timeout() ->

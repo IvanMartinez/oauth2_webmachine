@@ -29,13 +29,14 @@
 -include("include/oauth2_request.hrl").
 
 %%% API
--export([start/0, stop/0, add_user/2, add_user/3, delete_user/1, add_client/4, delete_client/1,
-         store_request/4, retrieve_request/1
+-export([start/0, stop/0, add_user/2, add_user/3, delete_user/1, add_client/4, 
+         delete_client/1, store_request/4, retrieve_request/1
         ]).
 
 %%% OAuth2 backend functionality
--export([authenticate_username_password/2, authenticate_client/2, associate_access_token/2, 
-         resolve_access_token/1, get_client_identity/1, get_redirection_uri/1, verify_resowner_scope/2,
+-export([authenticate_username_password/2, authenticate_client/2, 
+         associate_access_token/2, resolve_access_token/1, 
+         get_client_identity/1, get_redirection_uri/1, verify_resowner_scope/2,
          verify_client_scope/2
         ]).
 
@@ -52,7 +53,7 @@
 -record(client, {
           client_id     :: binary(),
           client_secret :: binary(),
-          redirect_uri  :: [binary()],
+          redirect_uri  :: binary(),
           scope         :: [binary()]
          }).
 
@@ -76,7 +77,8 @@ stop() ->
     lists:foreach(fun ets:delete/1, ?TABLES).
 
 add_user(Username, Password, Scope) ->
-    put(?USER_TABLE, Username, #user{username = Username, password = Password, scope = Scope}).
+    put(?USER_TABLE, Username, #user{username = Username, password = Password, 
+                                     scope = Scope}).
 
 add_user(Username, Password) ->
     add_user(Username, Password, []).
@@ -96,8 +98,10 @@ delete_client(Id) ->
 
 store_request(ClientId, RedirectURI, Scope, State) ->
     RequestId = oauth2_token:generate(),
-    put(?REQUEST_TABLE, RequestId, #oauth2_request{client_id = ClientId, redirect_uri = RedirectURI,
-                                            scope = Scope, state = State}),
+    put(?REQUEST_TABLE, RequestId, #oauth2_request{client_id = ClientId, 
+                                                   redirect_uri = RedirectURI,
+                                                   scope = Scope,
+                                                   state = State}),
     RequestId.
 
 retrieve_request(RequestId) ->
@@ -170,7 +174,8 @@ verify_resowner_scope(#user{scope = _RegisteredScope}, []) ->
 verify_resowner_scope(#user{scope = []}, _Scope) ->
     {error, invalid_scope};
 verify_resowner_scope(#user{scope = RegisteredScope}, Scope) ->
-    case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), oauth2_priv_set:new(RegisteredScope)) of
+    case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), 
+                                   oauth2_priv_set:new(RegisteredScope)) of
         true ->
             {ok, Scope};
         false ->
@@ -184,7 +189,8 @@ verify_client_scope(#client{scope = _RegisteredScope}, []) ->
 verify_client_scope(#client{scope = []}, _Scope) ->
     {error, invalid_scope};
 verify_client_scope(#client{scope = RegisteredScope}, Scope) ->
-    case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), oauth2_priv_set:new(RegisteredScope)) of
+    case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), 
+                                   oauth2_priv_set:new(RegisteredScope)) of
         true ->
             {ok, Scope};
         false ->

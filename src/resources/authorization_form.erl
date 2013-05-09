@@ -3,7 +3,8 @@
 %% @doc Example webmachine_resource.
 
 -module(authorization_form).
--export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, process_post/2]).
+-export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, 
+         process_post/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
 -include("../include/oauth2_request.hrl").
@@ -28,30 +29,33 @@ process_post(ReqData, State) ->
 -spec process(Params :: list(string())) ->
     {non_neg_integer(), binary(), binary()}.
 process(Params) ->
-error_logger:info_msg("Params ~p~n", [Params]),
+error_logger:info_msg("authorization_form Params ~p~n", [Params]),
     case oauth2_wrq:get_request_id(Params) of
         undefined ->
             {400, html:bad_request(), <<>>};
         RequestId ->
-error_logger:info_msg("request_id ~p~n", [RequestId]),
             case oauth2_wrq:get_owner_credentials(Params) of
                 undefined ->
                     {400, html:bad_request(), <<>>};
                 {Username, Password} ->
 error_logger:info_msg("username ~p~n", [Username]),
 error_logger:info_msg("password ~p~n", [Password]),
-                    case oauth2_ets_backend:authenticate_username_password(Username, Password) of
+                    case oauth2_ets_backend:authenticate_username_password(
+                           Username, Password) of
                         {ok, OwnerIdentity} ->
-                            case oauth2_ets_backend:retrieve_request(RequestId) of
-                                {ok, #oauth2_request{client_id = ClientId, redirect_uri = undefined, scope = Scope, state = State}} ->
-error_logger:info_msg("ClientId ~p~n", [ClientId]),
-error_logger:info_msg("Scope ~p~n", [Scope]),
-error_logger:info_msg("State ~p~n", [State]);
-                                {ok, #oauth2_request{client_id = ClientId, redirect_uri = RedirectUri, scope = Scope, state = State}} ->
+                            case oauth2_ets_backend:retrieve_request(
+                                   RequestId) of
+                                {ok, #oauth2_request{client_id = ClientId, 
+                                                     redirect_uri = RedirectUri,
+                                                     scope = Scope, 
+                                                     state = State}} ->
 error_logger:info_msg("ClientId ~p~n", [ClientId]),
 error_logger:info_msg("RedirectUri ~p~n", [RedirectUri]),
 error_logger:info_msg("Scope ~p~n", [Scope]),
-error_logger:info_msg("State ~p~n", [State]);
+error_logger:info_msg("State ~p~n", [State]),
+                                    issue_code_grant(ClientId, RedirectionUri, 
+                                                     OwnerIdentity, Scope, 
+                                                     State);
                                 {error, _} ->
                                     {408, html:request_timeout(), <<>>}
                             end;
@@ -61,3 +65,25 @@ error_logger:info_msg("State ~p~n", [State]);
                     
             end
     end.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+-spec issue_code_grant(ClientId, RedirectionUri, OwnerIdentity, Scope, State)
+                       -> {ok, Identity, Response} | {error, Reason} when
+      ClientId          :: binary(),
+      RedirectionUri    :: binary() | undefined,
+      OwnerIdentity     :: term(),
+      Scope             :: scope(),
+      State             :: binary() | undefined,
+      Identity          :: term(),
+      Response          :: oauth2_response:response(),
+      Reason            :: error().
+issue_code_grant(ClientId, RedirectionUri, OwnerIdentity, Scope, State) ->
+    case get_client_identity(ClientId) of
+        {ok, }
+    case issue_code_grant(ClientId, ResOwner, Scope) of
+        {ok, ClientIdentity, Response} ->
+            
+

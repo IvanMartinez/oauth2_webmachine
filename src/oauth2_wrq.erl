@@ -3,7 +3,10 @@
 
 -module(oauth2_wrq).
 
--include("../include/oauth2_wrq.hrl").
+-include_lib("webmachine/include/wm_reqdata.hrl").
+
+-define(AUTHENTICATE_REALM, "oauth2_webmachine").
+-type(wm_reqdata() :: #wm_reqdata{}).
 
 %% ====================================================================
 %% API functions
@@ -15,7 +18,8 @@
 -export([access_token_response/6, invalid_client_response/2, 
          invalid_grant_response/2, invalid_request_response/2, 
          invalid_scope_response/2, unsupported_grant_type_response/2, 
-         unsupported_response_type_response/2]).
+         unsupported_response_type_response/2, html_response/4,
+         redirected_error_response/5]).
 
 -spec parse_body(Request :: wm_reqdata()) ->
           list(string()).
@@ -43,7 +47,8 @@ get_client_id(Params) ->
             undefined
     end.
 
--spec get_client_credentials(Params :: list(string()), Request :: wm_reqdata()) ->
+-spec get_client_credentials(Params :: list(string()), 
+                             Request :: wm_reqdata()) ->
           {binary(), binary()} | undefined.
 get_client_credentials(Params, #wm_reqdata{} = Request) ->
     case wrq:get_req_header("Authorization", Request) of
@@ -66,7 +71,8 @@ get_client_credentials(Params, #wm_reqdata{} = Request) ->
     end.
 
 -spec get_grant_type(Params :: list(string())) ->
-          authorization_code | client_credentials | password | undefined | unsupported.
+          authorization_code | client_credentials | password | undefined | 
+              unsupported.
 get_grant_type([]) ->
     undefined;
 get_grant_type(Params) ->
@@ -169,48 +175,92 @@ get_request_id(Params) ->
                             Scope       :: [] | [string()],
                             State       :: term()) ->
     {{halt, 200}, wm_reqdata(), term()}.
-access_token_response(#wm_reqdata{} = Request, Token, Type, Expires, Scope, State) ->
+access_token_response(#wm_reqdata{} = Request, Token, Type, Expires, Scope, 
+                      State) ->
     {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ Token ++ 
                                         "\",\"token_type\":\"" ++ Type ++ 
-                                        "\",\"expires_in\":" ++ integer_to_list(Expires) ++ 
-                                        ",\"scope\":\"" ++ scope_string(Scope) ++"\"}", Request), State}.
+                                        "\",\"expires_in\":" ++ 
+                                        integer_to_list(Expires) ++ 
+                                        ",\"scope\":\"" ++ 
+                                        scope_string(Scope) ++"\"}", Request), 
+     State}.
 
 -spec invalid_client_response(Request   :: wm_reqdata(),
                               State     :: term()) ->
           {{halt, 401}, wm_reqdata(), term()}.
 invalid_client_response(#wm_reqdata{} = Request, State) ->
-    Response = wrq:set_resp_header("WWW-Authenticate", "Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", Request),
-    {{halt, 401}, wrq:set_resp_body("{\"error\":\"invalid_client\"}", Response), State}.
+    Response = wrq:set_resp_header("WWW-Authenticate", "Basic realm=\"" ++ 
+                                       ?AUTHENTICATE_REALM ++ "\"", Request),
+    {{halt, 401}, wrq:set_resp_body("{\"error\":\"invalid_client\"}", Response),
+     State}.
 
 -spec invalid_grant_response(Request    :: wm_reqdata(),
                              State      :: term()) ->
           {{halt, 400}, wm_reqdata(), term()}.
 invalid_grant_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_grant\"}", Request), State}.
+    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_grant\"}", Request),
+     State}.
 
 -spec invalid_request_response(Request  :: wm_reqdata(),
                                State    :: term()) ->
           {{halt, 400}, wm_reqdata(), term()}.
 invalid_request_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_request\"}", Request), State}.
+    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_request\"}", Request),
+     State}.
 
 -spec invalid_scope_response(Request    :: wm_reqdata(),
                              State      :: term()) ->
     {{halt, 400}, wm_reqdata(), term()}.
 invalid_scope_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_scope\"}", Request), State}.
+    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_scope\"}", Request),
+     State}.
 
 -spec unsupported_grant_type_response(Request   :: wm_reqdata(),
                                       State     :: term()) ->
           {{halt, 400}, wm_reqdata(), term()}.
 unsupported_grant_type_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"unsupported_grant_type\"}", Request), State}.
+    {{halt, 400}, wrq:set_resp_body("{\"error\":\"unsupported_grant_type\"}",
+                                    Request), State}.
 
 -spec unsupported_response_type_response(Request    :: wm_reqdata(),
                                          State      :: term()) ->
           {{halt, 400}, wm_reqdata(), term()}.
 unsupported_response_type_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"unsupported_response_type\"}", Request), State}.
+    {{halt, 400}, wrq:set_resp_body("{\"error\":\"unsupported_response_type\"}",
+                                    Request), State}.
+
+-spec html_response(ReqData     :: wm_reqdata(),
+                    HttpStatus  :: pos_integer(),
+                    Body        :: binary(),
+                    Context     :: term()) ->
+          {{halt, pos_integer()}, wm_reqdata(), term()}.
+html_response(ReqData, HttpStatus, Body, Context) ->
+    {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), Context}.
+
+-spec redirected_error_response(Request :: wm_reqdata(),
+                                Uri     :: binary(),
+                                Error   :: invalid_request,
+                                State   :: binary(),
+                                Context :: term()) ->
+          {{halt, 302}, wm_reqdata(), term()}.
+redirected_error_response(Request, Uri, Error, State, Context) ->
+    ErrorString = case Error of
+                      invalid_request ->
+                          "invalid_request";
+                      unsupported_response_type ->
+                          "unsupported_response_type"
+                  end,
+    {{halt, 302}, wrq:set_resp_header("Location", binary_to_list(Uri) ++
+                                          "?error=" ++ ErrorString ++
+                                          state_to_uri(State), Request),
+     Context}.
+
+%% -spec redirection_uri(Uri           :: binary(),
+%%                       Parameters    :: list({string(), 
+%%                                              string() | binary()})) ->
+%%           binary().
+%% redirection_uri(Uri, Parameters) ->
+%%     <<Uri/binary, $?, mochiweb_util:urlencode(Parameters) >>.
 
 %% ====================================================================
 %% Internal functions
@@ -234,3 +284,11 @@ scope_string([ScopeItem]) ->
 scope_string([ScopeItem | RestOfScope]) ->
     binary_to_list(ScopeItem) ++ " " ++ scope_string(RestOfScope).
 
+-spec state_to_uri(State :: string() | undefined) ->
+          string().
+state_to_uri(undefined) ->
+    "";
+state_to_uri(<<>>) ->
+    "";
+state_to_uri(State) ->
+    "&state=" ++ binary_to_list(State).

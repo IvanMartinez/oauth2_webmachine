@@ -9,34 +9,35 @@
 -include_lib("webmachine/include/webmachine.hrl").
 -include("../include/oauth2_request.hrl").
 
+-type(wm_reqdata() :: #wm_reqdata{}).
+
 init([]) -> {ok, undefined}.
 
-allowed_methods(ReqData, State) ->
-    {['GET', 'POST'], ReqData, State}.
+allowed_methods(ReqData, Context) ->
+    {['GET', 'POST'], ReqData, Context}.
 
-content_types_provided(ReqData, State) ->
-    {[{"text/html", process_get}], ReqData, State}.
+content_types_provided(ReqData, Context) ->
+    {[{"text/html", process_get}], ReqData, Context}.
 
-process_get(ReqData, State) ->
-    {HttpStatus, Body, Location} = process(wrq:req_qs(ReqData)),
-    {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), State}.
+process_get(ReqData, Context) ->
+    process(ReqData, wrq:req_qs(ReqData), Context).
 
-process_post(ReqData, State) ->
-    error_logger:info_msg("process_post~n", []),
-    {HttpStatus, Body, Location} = process(oauth2_wrq:parse_body(ReqData)),
-    {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), State}.
+process_post(ReqData, Context) ->
+    process(ReqData, oauth2_wrq:parse_body(ReqData), Context).
 
--spec process(Params :: list(string())) ->
-    {non_neg_integer(), binary(), binary()}.
-process(Params) ->
+-spec process(ReqData   :: wm_reqdata(),
+              Params    :: list(string()),
+              Context   :: term()) ->
+          wm_reqdata().
+process(ReqData, Params, Context) ->
 error_logger:info_msg("authorization_form Params ~p~n", [Params]),
     case oauth2_wrq:get_request_id(Params) of
         undefined ->
-            {400, html:bad_request(), <<>>};
+            oauth2_wrq:html_response(ReqData, 400, html:bad_request(), Context);
         RequestId ->
             case oauth2_wrq:get_owner_credentials(Params) of
                 undefined ->
-                    {400, html:bad_request(), <<>>};
+                    oauth2_wrq:html_response(ReqData, 400, html:bad_request(), Context);
                 {Username, Password} ->
 error_logger:info_msg("username ~p~n", [Username]),
 error_logger:info_msg("password ~p~n", [Password]),
@@ -53,7 +54,7 @@ error_logger:info_msg("ClientId ~p~n", [ClientId]),
 error_logger:info_msg("RedirectUri ~p~n", [RedirectUri]),
 error_logger:info_msg("Scope ~p~n", [Scope]),
 error_logger:info_msg("State ~p~n", [State]),
-                                    issue_code_grant(ClientId, RedirectionUri, 
+                                    issue_code_grant(ClientId, RedirectUri, 
                                                      OwnerIdentity, Scope, 
                                                      State);
                                 {error, _} ->
@@ -75,15 +76,12 @@ error_logger:info_msg("State ~p~n", [State]),
       ClientId          :: binary(),
       RedirectionUri    :: binary() | undefined,
       OwnerIdentity     :: term(),
-      Scope             :: scope(),
+      Scope             :: binary(),
       State             :: binary() | undefined,
       Identity          :: term(),
       Response          :: oauth2_response:response(),
-      Reason            :: error().
+      Reason            :: binary().
 issue_code_grant(ClientId, RedirectionUri, OwnerIdentity, Scope, State) ->
-    case get_client_identity(ClientId) of
-        {ok, }
-    case issue_code_grant(ClientId, ResOwner, Scope) of
-        {ok, ClientIdentity, Response} ->
+    ok.
             
 

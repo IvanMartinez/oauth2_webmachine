@@ -3,9 +3,9 @@
 %% @doc Example webmachine_resource.
 
 -module(html).
--export([authorization_form/3, bad_request/0, unsupported_response_type/0, 
-         invalid_client/0, unauthorized/0, unauthorized_client/0,
-         request_timeout/0]).
+-export([authorization_form/3, bad_request/0, 
+         invalid_client/0, invalid_redirection_uri/0, unauthorized/0, 
+         unauthorized_client/0, request_timeout/0]).
 
 -spec authorization_form(ClientId  :: string() | binary(),
                           Scope     :: string() | binary(),
@@ -35,12 +35,16 @@ unsupported_response_type() ->
 invalid_client() ->
     <<"<html><body>Invalid client</body></html>">>.
 
+-spec invalid_redirection_uri() -> binary().
+invalid_redirection_uri() ->
+    <<"<html><body>Invalid redirection URI</body></html>">>.
+
 -spec unauthorized() -> binary().
 unauthorized() ->
     <<"<html><body>Unauthorized</body></html>">>.
 
 -spec unauthorized_client() -> binary().
-unauthorized() ->
+unauthorized_client() ->
     <<"<html><body>Unauthorized client</body></html>">>.
 
 -spec request_timeout() -> binary().

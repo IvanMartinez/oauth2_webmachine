@@ -4,7 +4,6 @@
 -module(owner_token_test).
 
 -include_lib("eunit/include/eunit.hrl").
--include("../include/oauth2_wrq.hrl").
 
 -define(PATH, "/owner_token").
 -define(STATE, whatever).

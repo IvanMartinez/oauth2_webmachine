@@ -4,7 +4,6 @@
 -module(client_token_test).
 
 -include_lib("eunit/include/eunit.hrl").
--include("../include/oauth2_wrq.hrl").
 
 -define(PATH, "/client_token").
 -define(STATE, whatever).
@@ -14,6 +13,7 @@
 -define(TOKENCODE, "TOKENCODE").
 -define(BASIC_CREDENTIALS(ID, SECRET), "Basic " ++ 
             base64:encode_to_string(ID ++ ":" ++ SECRET)).
+-define(AUTHENTICATE_REALM, "oauth2_webmachine").
 
 %% ===================================================================
 %% Setup functions
@@ -38,7 +38,7 @@ before_tests() ->
     meck:new(oauth2_token),
     meck:expect(oauth2_token, generate, fun() -> <<?TOKENCODE>> end),
     oauth2_ets_backend:start(),
-    oauth2_ets_backend:add_client(<<?CLIENT1ID>>, <<?CLIENT1SECRET>>, "", 
+    oauth2_ets_backend:add_client(<<?CLIENT1ID>>, <<?CLIENT1SECRET>>, <<>>, 
                                   ?CLIENT1SCOPE),
     ok.
 

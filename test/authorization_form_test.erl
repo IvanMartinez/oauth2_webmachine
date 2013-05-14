@@ -4,7 +4,6 @@
 -module(authorization_form_test).
 
 -include_lib("eunit/include/eunit.hrl").
--include("../include/oauth2_wrq.hrl").
 
 -define(PATH, "/authorization_form").
 -define(STATE, whatever).
@@ -31,9 +30,9 @@ setup_test_() ->
     {setup, 
         fun before_tests/0,
         fun after_tests/1,
-        fun (Config) -> [bad_request_tests(Config),
-                         unauthorized_tests(Config),
-                         request_timeout_tests(Config)
+        fun (Config) -> [%bad_request_tests(Config),
+                         %unauthorized_tests(Config),
+                         %request_timeout_tests(Config)
                          %invalid_scope_tests(Config),
                          %successful_tests(Config)
                         ] end

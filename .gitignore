@@ -4,3 +4,9 @@ deps
 *.beam
 *.plt
 /ebin
+rebar
+.project
+.settings
+*.dump
+buildplt
+dialyzer*

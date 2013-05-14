@@ -7,60 +7,102 @@
          process_post/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
+-type(wm_reqdata() :: #wm_reqdata{}).
 
 init([]) -> {ok, undefined}.
 
-allowed_methods(ReqData, State) ->
-    {['GET', 'POST'], ReqData, State}.
+allowed_methods(ReqData, Context) ->
+    {['GET', 'POST'], ReqData, Context}.
 
-content_types_provided(ReqData, State) ->
-    {[{"text/html", process_get}], ReqData, State}.
+content_types_provided(ReqData, Context) ->
+    {[{"text/html", process_get}], ReqData, Context}.
 
-process_get(ReqData, State) ->
-    {HttpStatus, Body} = process(wrq:req_qs(ReqData)),
-    {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), State}.
+process_get(ReqData, Context) ->
+    process(ReqData, wrq:req_qs(ReqData), Context).
 
-process_post(ReqData, State) ->
-    error_logger:info_msg("process_post~n", []),
-    {HttpStatus, Body} = process(oauth2_wrq:parse_body(ReqData)),
-    {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), State}.
+process_post(ReqData, Context) ->
+    process(ReqData, oauth2_wrq:parse_body(ReqData), Context).
 
--spec process(Params :: list(string())) ->
-    {non_neg_integer(), binary()}.
-process(Params) ->
-    case oauth2_wrq:get_response_type(Params) of
-        code ->
-            case oauth2_wrq:get_client_id(Params) of
-                undefined ->
-                    {400, html:bad_request()};
-                ClientId ->
-                    case oauth2_ets_backend:get_redirection_uri(ClientId) of
-                        {error, _} ->
-                            {403, html:unauthorized_client()};
-                        {ok, []} ->
-                            {403, html:unauthorized_client()};
-                        {ok, RedirectionUris} ->
-                            
-                    RedirectUri = oauth2_wrq:get_redirect_uri(Params),
-                    Scope = oauth2_wrq:get_scope(Params),        
-                    ScopeString = case lists:keyfind("scope", 1, Params) of
-                        {"scope", ""} ->
-                            "none";
-                        {"scope", AScope} ->
-                            AScope;
-                        false ->
-                            "default"
-                    end,
-                    StateParam = oauth2_wrq:get_state(Params),
-                    RequestId = oauth2_ets_backend:store_request(ClientId, 
-                                                                 RedirectUri, 
-                                                                 Scope, 
-                                                                 StateParam),
-                    {200, html:authorization_form(ClientId, ScopeString, 
-                                                  RequestId)}
-            end;
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+-spec process(ReqData   :: wm_reqdata(),
+              Params    :: list(string()),
+              Context   :: term()) ->
+          wm_reqdata().
+process(ReqData, Params, Context) ->
+    case oauth2_wrq:get_client_id(Params) of
         undefined ->
-            {400, html:bad_request()};
+            oauth2_wrq:html_response(ReqData, 400, html:bad_request(), Context);
+        ClientId ->
+            case oauth2_ets_backend:get_redirection_uri(ClientId) of
+                {ok, RegisteredUri} ->
+                    case verify_redirection_uri(
+                           oauth2_wrq:get_redirect_uri(Params),
+                           RegisteredUri) of
+                        {match, _} ->
+                            StateParam = oauth2_wrq:get_state(Params),
+                            case oauth2_wrq:get_response_type(Params) of
+                                code ->
+                                    Scope = oauth2_wrq:get_scope(Params),        
+                                    RequestId =
+                                        oauth2_ets_backend:store_request(
+                                          ClientId, RegisteredUri, Scope,
+                                          StateParam),
+                                    ScopeString = case lists:keyfind("scope", 1,
+                                                                     Params) of
+                                                      {"scope", ""} ->
+                                                          "none";
+                                                      {"scope", AScope} ->
+                                                          AScope;
+                                                      false ->
+                                                          "default"
+                                                  end,
+                                    oauth2_wrq:html_response(ReqData, 200,
+                                               html:authorization_form(ClientId,
+                                                                    ScopeString,
+                                                                    RequestId),
+                                                             Context);
+                                undefined ->
+                                    oauth2_wrq:redirected_error_response(
+                                      ReqData, RegisteredUri, invalid_request,
+                                      StateParam, Context);
+                                _ ->
+                                    oauth2_wrq:redirected_error_response(
+                                      ReqData, RegisteredUri,
+                                      unsupported_response_type, StateParam, 
+                                      Context)
+                            end;
+                        {mismatch, none_registered} ->
+                            oauth2_wrq:html_response(ReqData, 403,
+                                                     html:unauthorized_client(),
+                                                     Context);
+                        {mismatch, different} ->
+                            oauth2_wrq:html_response(ReqData, 401,
+                                                 html:invalid_redirection_uri(),
+                                                 Context)
+                    end;
+            _ ->
+                oauth2_wrq:html_response(ReqData, 401, html:unauthorized(),
+                                         Context)
+            end
+    end.
+
+-spec verify_redirection_uri(ParameterUri   :: binary(),
+                             RegisteredUri  :: binary()) ->
+          {match, atom()} | {mismatch, atom()}.
+verify_redirection_uri(ParameterUri, RegisteredUri) ->
+    case RegisteredUri of
+        <<>> ->
+            {mismatch, none_registered};
         _ ->
-            {400, html:unsupported_response_type()}
+            case ParameterUri of
+                undefined ->
+                    {match, no_parameter};
+                RegisteredUri ->
+                    {match, equal};
+                _ ->
+                    {mismatch, different}
+            end
     end.

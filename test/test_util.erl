@@ -1,10 +1,12 @@
 %% @author ivanmr
 %% @doc @todo Add description to test_util.
 
-
 -module(test_util).
 
--include("../include/oauth2_wrq.hrl").
+-include_lib("webmachine/include/wm_reqdata.hrl").
+
+-type(wm_reqdata() :: #wm_reqdata{}).
+
 
 %% ====================================================================
 %% API functions
@@ -17,7 +19,7 @@
           wm_reqdata().
 make_get_wrq(Path, [], Headers) ->
     wrq:create('GET', http, {1,1}, Path, mochiweb_headers:from_list(Headers));
-make_get_wrq(Path, Params, Headers) ->
+make_get_wrq(Path, Parameters, Headers) ->
     wrq:create('GET', http, {1,1}, Path ++ "?" ++ 
-                   mochiweb_util:urlencode(Params),
+                   mochiweb_util:urlencode(Parameters),
                mochiweb_headers:from_list(Headers)).

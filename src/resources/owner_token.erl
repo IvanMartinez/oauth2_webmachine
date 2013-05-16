@@ -10,24 +10,25 @@
 
 init([]) -> {ok, undefined}.
 
-allowed_methods(ReqData, State) ->
-    {['GET', 'POST'], ReqData, State}.
+allowed_methods(ReqData, Context) ->
+    {['GET', 'POST'], ReqData, Context}.
 
-content_types_provided(ReqData, State) ->
-    {[{"application/json;charset=UTF-8", process_get}], ReqData, State}.
+content_types_provided(ReqData, Context) ->
+    {[{"application/json;charset=UTF-8", process_get}], ReqData, Context}.
 
-process_get(ReqData, State) ->
-    process(ReqData, wrq:req_qs(ReqData), State).
+process_get(ReqData, Context) ->
+    process(ReqData, wrq:req_qs(ReqData), Context).
 
-process_post(ReqData, State) ->
-    process(ReqData, oauth2_wrq:parse_body(ReqData), State).
+process_post(ReqData, Context) ->
+    process(ReqData, oauth2_wrq:parse_body(ReqData), Context).
 
-process(ReqData, Params, State) ->
+process(ReqData, Params, Context) ->
     case oauth2_wrq:get_grant_type(Params) of
         password ->
             case oauth2_wrq:get_owner_credentials(Params) of
                 undefined ->
-                    oauth2_wrq:invalid_request_response(ReqData, State);
+                    oauth2_wrq:json_error_response(ReqData, invalid_request,
+                                                   Context);
                 {Username, Password} ->
                     case oauth2:authorize_password(Username, Password, 
                                                    oauth2_wrq:get_scope(Params))
@@ -45,15 +46,20 @@ process(ReqData, Params, State) ->
                                                           binary_to_list(Token),
                                                           binary_to_list(Type),
                                                           Expires, Scope,
-                                                          State);
+                                                          Context);
                         {error, invalid_scope} ->
-                            oauth2_wrq:invalid_scope_response(ReqData, State);
+                            oauth2_wrq:json_error_response(ReqData, 
+                                                           invalid_scope, 
+                                                           Context);
                         {error, _Reason} ->
-                            oauth2_wrq:invalid_grant_response(ReqData, State)
+                            oauth2_wrq:json_error_response(ReqData, 
+                                                           invalid_grant, 
+                                                           Context)
                     end
             end;
         undefined ->
-            oauth2_wrq:invalid_request_response(ReqData, State);
+            oauth2_wrq:json_error_response(ReqData, invalid_request, Context);
         _ ->
-            oauth2_wrq:unsupported_grant_type_response(ReqData, State)
+            oauth2_wrq:json_error_response(ReqData, unsupported_grant_type,
+                                           Context)
     end.

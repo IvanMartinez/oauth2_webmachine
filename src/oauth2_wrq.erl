@@ -15,10 +15,7 @@
 -export([parse_body/1, get_grant_type/1, get_response_type/1, 
          get_owner_credentials/1, get_client_id/1, get_client_credentials/2, 
          get_redirect_uri/1, get_scope/1, get_state/1, get_request_id/1]).
--export([access_token_response/6, invalid_client_response/2, 
-         invalid_grant_response/2, invalid_request_response/2, 
-         invalid_scope_response/2, unsupported_grant_type_response/2, 
-         unsupported_response_type_response/2, html_response/4,
+-export([access_token_response/6, json_error_response/3, html_response/4,
          redirected_error_response/5]).
 
 -spec parse_body(Request :: wm_reqdata()) ->
@@ -185,49 +182,35 @@ access_token_response(#wm_reqdata{} = Request, Token, Type, Expires, Scope,
                                         scope_string(Scope) ++"\"}", Request), 
      State}.
 
--spec invalid_client_response(Request   :: wm_reqdata(),
-                              State     :: term()) ->
-          {{halt, 401}, wm_reqdata(), term()}.
-invalid_client_response(#wm_reqdata{} = Request, State) ->
-    Response = wrq:set_resp_header("WWW-Authenticate", "Basic realm=\"" ++ 
-                                       ?AUTHENTICATE_REALM ++ "\"", Request),
-    {{halt, 401}, wrq:set_resp_body("{\"error\":\"invalid_client\"}", Response),
-     State}.
-
--spec invalid_grant_response(Request    :: wm_reqdata(),
-                             State      :: term()) ->
-          {{halt, 400}, wm_reqdata(), term()}.
-invalid_grant_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_grant\"}", Request),
-     State}.
-
--spec invalid_request_response(Request  :: wm_reqdata(),
-                               State    :: term()) ->
-          {{halt, 400}, wm_reqdata(), term()}.
-invalid_request_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_request\"}", Request),
-     State}.
-
--spec invalid_scope_response(Request    :: wm_reqdata(),
-                             State      :: term()) ->
-    {{halt, 400}, wm_reqdata(), term()}.
-invalid_scope_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_scope\"}", Request),
-     State}.
-
--spec unsupported_grant_type_response(Request   :: wm_reqdata(),
-                                      State     :: term()) ->
-          {{halt, 400}, wm_reqdata(), term()}.
-unsupported_grant_type_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"unsupported_grant_type\"}",
-                                    Request), State}.
-
--spec unsupported_response_type_response(Request    :: wm_reqdata(),
-                                         State      :: term()) ->
-          {{halt, 400}, wm_reqdata(), term()}.
-unsupported_response_type_response(#wm_reqdata{} = Request, State) ->
-    {{halt, 400}, wrq:set_resp_body("{\"error\":\"unsupported_response_type\"}",
-                                    Request), State}.
+-spec json_error_response(Request   :: #wm_reqdata{},
+                          Error     :: invalid_client | invalid_grant | 
+                              invalid_request | invalid_scope | 
+                              unsupported_grant_type | 
+                              unsupported_response_type,
+                          Context   :: term()) ->
+          {{halt, 400 | 401}, #wm_reqdata{}, term()}.
+json_error_response(Request, Error, Context) ->
+    case Error of
+        invalid_client ->
+            Response = wrq:set_resp_header("WWW-Authenticate", 
+                                           "Basic realm=\"" ++ 
+                                               ?AUTHENTICATE_REALM ++ "\"", 
+                                           Request),
+            {{halt, 401}, wrq:set_resp_body("{\"error\":\"invalid_client\"}", 
+                                            Response), Context};
+        invalid_grant ->
+            {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_grant\"}",
+                                            Request), Context};
+        invalid_request ->
+            {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_request\"}", 
+                                            Request), Context};
+        invalid_scope ->
+            {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_scope\"}", 
+                                            Request), Context};
+        unsupported_grant_type ->
+            {{halt, 400}, wrq:set_resp_body(
+               "{\"error\":\"unsupported_grant_type\"}", Request), Context}
+    end.
 
 -spec html_response(ReqData     :: wm_reqdata(),
                     HttpStatus  :: pos_integer(),
@@ -239,14 +222,22 @@ html_response(ReqData, HttpStatus, Body, Context) ->
 
 -spec redirected_error_response(Request :: wm_reqdata(),
                                 Uri     :: binary(),
-                                Error   :: invalid_request,
+                                Error   :: access_denied | invalid_request | 
+                                    request_timeout | server_error | 
+                                    unsupported_response_type,
                                 State   :: binary(),
                                 Context :: term()) ->
           {{halt, 302}, wm_reqdata(), term()}.
 redirected_error_response(Request, Uri, Error, State, Context) ->
     ErrorString = case Error of
+                      access_denied ->
+                          "access_denied";
                       invalid_request ->
                           "invalid_request";
+                      request_timeout ->
+                          "request_timeout";
+                      server_error ->
+                          "server_error";
                       unsupported_response_type ->
                           "unsupported_response_type"
                   end,

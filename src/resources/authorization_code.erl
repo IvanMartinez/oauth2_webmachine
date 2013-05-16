@@ -50,15 +50,7 @@ process(ReqData, Params, Context) ->
                                         oauth2_ets_backend:store_request(
                                           ClientId, RegisteredUri, Scope,
                                           StateParam),
-                                    ScopeString = case lists:keyfind("scope", 1,
-                                                                     Params) of
-                                                      {"scope", ""} ->
-                                                          "none";
-                                                      {"scope", AScope} ->
-                                                          AScope;
-                                                      false ->
-                                                          "default"
-                                                  end,
+                                    ScopeString = scope_string(Params),
                                     oauth2_wrq:html_response(ReqData, 200,
                                                html:authorization_form(ClientId,
                                                                     ScopeString,
@@ -106,3 +98,16 @@ verify_redirection_uri(ParameterUri, RegisteredUri) ->
                     {mismatch, different}
             end
     end.
+
+-spec scope_string(Params :: list(string())) ->
+          string().
+scope_string(Params) ->
+    case lists:keyfind("scope", 1, Params) of
+        {"scope", ""} ->
+            "none";
+        {"scope", AScope} ->
+            AScope;
+        false ->
+            "default"
+    end.
+    

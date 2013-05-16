@@ -28,9 +28,10 @@ Scopes may be separated by "+" and/or "%20" characters. If the requested scope i
 
 The following errors may occur before the existence of a redirection URI is confirmed, so they are not forwarded to any URI. They are the direct response to the request.
 
-1. HTTP 400 Bad Request. The request has no "client_id" parameter.
-1. HTTP 401 Unauthorized. The value of the "client_id" parameter doesn't match the id of any registered client, or the value of the "redirect_uri" parameter doesn't match the registered redirection URI of the client.
-1. HTTP 403 Forbidden. The value of the "client_id" parameter matches the id of a registered client, but this doesn't have a registered redirection URI. The validity of the redirection URI is not checked, this should be done during client registration.
+- HTTP 400 Bad Request. If returned before the authentication form is presented, the request has no "client_id" parameter. If returned after the authentication form is presented, the form is missing a required field (request_id, username or password).
+- HTTP 401 Unauthorized. The value of the "client_id" parameter doesn't match the id of any registered client, or the value of the "redirect_uri" parameter doesn't match the registered redirection URI of the client.
+- HTTP 403 Forbidden. The value of the "client_id" parameter matches the id of a registered client, but this doesn't have a registered redirection URI. The validity of the redirection URI is not checked, this should be done during client registration.
+- HTTP 408 Request timeout. The server couldn't find stored data of the initial request. This is probably because the resource owner took too long to answer the authentication form.
 
 Any other error or successful response is forwarded to the registered redirection URI of the client with a HTTP 302 response, as explained in the specification.
 
@@ -39,9 +40,9 @@ Any other error or successful response is forwarded to the registered redirectio
 - invalid_request: If the request has a repeated parameter, the value of the first occurrence will be taken without necessarily producing an error. Such is the behaviour of
 Webmachine's wrq:get_qs_value/2 function. Using more than one authenticating mechanism doesn't necessarily produce an error either, see point 2.3. above.
 
-- invalid_client: This error is returned in a HTTP 401 response, with authenticate realm "oauth2_webmachine". The realm is defined in "oauth2_wrq.hrl" file.
+- invalid_client: This error is returned in a HTTP 401 response, with authenticate realm "oauth2_webmachine". The realm is defined in "oauth2_wrq.erl" file.
 
-- unsupported_grant_type: Since this implementation uses a different URL path for each grant type, issuing a wrong grant_type value for a certain path (i.e. http:/localhost:8000//client_token?grant_type=password) results in a unsupponted_grant_type error. In cases like this the error doesn't mean that the grant type isn't supported at all, only that it's being sent to the wrong URL.
+- unsupported_grant_type: Since this implementation uses a different URL path for each grant type, issuing a wrong grant_type value for a certain path (i.e. http:/localhost:8000/client_token?grant_type=password) results in a unsupponted_grant_type error. In cases like this the error doesn't mean that the grant type isn't supported at all, only that it's being sent to the wrong URL.
 
 ## Feedback
 

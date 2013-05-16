@@ -27,10 +27,6 @@ authorization_form(ClientId, Scope, RequestId)->
 bad_request() ->
     <<"<html><body>Bad request</body></html>">>.
 
--spec unsupported_response_type() -> binary().
-unsupported_response_type() ->
-    <<"<html><body>Unsupported response type</body></html>">>.
-
 -spec invalid_client() -> binary().
 invalid_client() ->
     <<"<html><body>Invalid client</body></html>">>.

@@ -7,6 +7,8 @@ deps
 rebar
 .project
 .settings
+/ebin
 *.dump
 buildplt
 dialyzer*
+*~

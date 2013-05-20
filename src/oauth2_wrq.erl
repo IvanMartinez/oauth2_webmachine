@@ -1,12 +1,13 @@
-%% @author https://github.com/IvanMartinez
-%% @doc @todo Add description to oauth2_wrq.
+%% @copyright 2013 author.
+%% @doc Functions to read webmachine OAuth2 requests and generate responses.
+%% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(oauth2_wrq).
 
 -include_lib("webmachine/include/wm_reqdata.hrl").
 
 -define(AUTHENTICATE_REALM, "oauth2_webmachine").
--type(wm_reqdata() :: #wm_reqdata{}).
+%-type(wm_reqdata() :: #wm_reqdata{}).
 
 %% ====================================================================
 %% API functions
@@ -18,11 +19,9 @@
 -export([access_token_response/6, json_error_response/3, html_response/4,
          redirected_error_response/5]).
 
--spec parse_body(Request :: wm_reqdata()) ->
+-spec parse_body(Request :: #wm_reqdata{}) ->
           list(string()).
 parse_body(Request) ->
-%% error_logger:info_msg("parse_body Request = ~p~n", [Request]),    
-%% error_logger:info_msg("parse_body Body = ~p~n", [wrq:req_body(Request)]),    
     case wrq:req_body(Request) of
         undefined ->
             [];
@@ -44,8 +43,8 @@ get_client_id(Params) ->
             undefined
     end.
 
--spec get_client_credentials(Params :: list(string()), 
-                             Request :: wm_reqdata()) ->
+-spec get_client_credentials(Params     :: list(string()), 
+                             Request    :: #wm_reqdata{}) ->
           {binary(), binary()} | undefined.
 get_client_credentials(Params, #wm_reqdata{} = Request) ->
     case wrq:get_req_header("Authorization", Request) of
@@ -165,13 +164,13 @@ get_request_id(Params) ->
             undefined
     end.
 
--spec access_token_response(Request     :: wm_reqdata(),
+-spec access_token_response(Request     :: #wm_reqdata{},
                             Token       :: string(),
                             Type        :: string(),
                             Expires     :: non_neg_integer(),
                             Scope       :: [] | [string()],
                             State       :: term()) ->
-    {{halt, 200}, wm_reqdata(), term()}.
+    {{halt, 200}, #wm_reqdata{}, term()}.
 access_token_response(#wm_reqdata{} = Request, Token, Type, Expires, Scope, 
                       State) ->
     {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ Token ++ 
@@ -212,22 +211,22 @@ json_error_response(Request, Error, Context) ->
                "{\"error\":\"unsupported_grant_type\"}", Request), Context}
     end.
 
--spec html_response(ReqData     :: wm_reqdata(),
+-spec html_response(ReqData     :: #wm_reqdata{},
                     HttpStatus  :: pos_integer(),
                     Body        :: binary(),
                     Context     :: term()) ->
-          {{halt, pos_integer()}, wm_reqdata(), term()}.
+          {{halt, pos_integer()}, #wm_reqdata{}, term()}.
 html_response(ReqData, HttpStatus, Body, Context) ->
     {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), Context}.
 
--spec redirected_error_response(Request :: wm_reqdata(),
+-spec redirected_error_response(Request :: #wm_reqdata{},
                                 Uri     :: binary(),
                                 Error   :: access_denied | invalid_request | 
                                     request_timeout | server_error | 
                                     unsupported_response_type,
                                 State   :: binary(),
                                 Context :: term()) ->
-          {{halt, 302}, wm_reqdata(), term()}.
+          {{halt, 302}, #wm_reqdata{}, term()}.
 redirected_error_response(Request, Uri, Error, State, Context) ->
     ErrorString = case Error of
                       access_denied ->
@@ -245,13 +244,6 @@ redirected_error_response(Request, Uri, Error, State, Context) ->
                                           "?error=" ++ ErrorString ++
                                           state_to_uri(State), Request),
      Context}.
-
-%% -spec redirection_uri(Uri           :: binary(),
-%%                       Parameters    :: list({string(), 
-%%                                              string() | binary()})) ->
-%%           binary().
-%% redirection_uri(Uri, Parameters) ->
-%%     <<Uri/binary, $?, mochiweb_util:urlencode(Parameters) >>.
 
 %% ====================================================================
 %% Internal functions
@@ -275,7 +267,7 @@ scope_string([ScopeItem]) ->
 scope_string([ScopeItem | RestOfScope]) ->
     binary_to_list(ScopeItem) ++ " " ++ scope_string(RestOfScope).
 
--spec state_to_uri(State :: string() | undefined) ->
+-spec state_to_uri(State :: binary() | undefined) ->
           string().
 state_to_uri(undefined) ->
     "";

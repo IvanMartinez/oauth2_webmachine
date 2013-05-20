@@ -1,6 +1,6 @@
 %% @author https://github.com/IvanMartinez
-%% @copyright YYYY author.
-%% @doc Example webmachine_resource.
+%% @copyright 2013 author.
+%% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(authorization_token).
 -export([init/1, resource_exists/2]).

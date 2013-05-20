@@ -1,5 +1,7 @@
 %% @author https://github.com/IvanMartinez
-%% @doc @todo Add description to register_processor_tests.
+%% @copyright 2013 author.
+%% @doc Tests owner_token.
+%% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(owner_token_test).
 

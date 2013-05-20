@@ -1,6 +1,7 @@
 %% @author https://github.com/IvanMartinez
 %% @copyright 2013 author.
 %% @doc Example webmachine_resource.
+%% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(authorization_code).
 -export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, 
@@ -110,4 +111,3 @@ scope_string(Params) ->
         false ->
             "default"
     end.
-    

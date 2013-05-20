@@ -2,9 +2,44 @@
 
 This is a sample implementation of an OAuth 2 server using Webmachine. It's intended to be used as a reference or starting point for other implementations. *It's not secure as it is*, mainly because it uses HTTP clear-text communication. 
 
+## Quickstart
+
+Compile and execute with
+
+    $ make
+    $ ./start.sh
+
+## Testing
+
+Execute unit tests with 
+
+    $ rebar eunit skip_deps=true
+
+### Resource Owner Password Credentials Grant
+
+Add a user in the command shell of the Erlang instance running the server with
+
+    > oauth2_ets_backend:add_user(<<"User1">>, <<"Password1">>, [<<"root.a.*">>, <<"root.x.y">>]).
+
+Use curl to send requests in the system command shell like
+
+    $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1&scope=root.a.b+root.x.y"
+    $ curl -v -X GET "http://127.0.0.1:8000/owner_token?grant_type=password&username=User1&password=Password1&scope=root.a.b+root.x.y"
+
+### Client Credentials Grant
+
+Add a client in the command shell of the Erlang instance running the server with
+
+    > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"Uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
+
+Use curl to send requests in the system command shell like
+
+    $ curl -v -X POST http://127.0.0.1:8000/client_token -d "grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.b root.x.y"
+    $ curl -v -X GET "http://127.0.0.1:8000/client_token?grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.b+root.x.y"
+
 ## OAuth 2 implementation
 
-This server is intendend to comply with this specification:
+This server is intended to comply with this specification:
 
 http://tools.ietf.org/html/rfc6749
 
@@ -22,6 +57,8 @@ Registering multiple redirection endpoints for a client is not allowed.
 3.3. Access Token Scope
 
 Scopes may be separated by "+" and/or "%20" characters. If the requested scope is a subset of the registered scope, the response returns the requested scope. If the request contains no scope parameter, the response returns the registered scope. If the registered scope is empty, and the request contains no scope parameter or its value is empty, the response returns an empty scope value.
+
+For more information about scope validation, see https://github.com/IvanMartinez/oauth2 README.md file.
 
 4.1. Authorization Code Grant
 4.1.2.1. Error Response

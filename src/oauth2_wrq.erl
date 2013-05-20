@@ -268,7 +268,7 @@ scope_string([ScopeItem]) ->
 scope_string([ScopeItem | RestOfScope]) ->
     binary_to_list(ScopeItem) ++ " " ++ scope_string(RestOfScope).
 
--spec state_to_uri(State :: string() | undefined) ->
+-spec state_to_uri(State :: binary() | undefined) ->
           string().
 state_to_uri(undefined) ->
     "";

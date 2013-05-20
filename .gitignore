@@ -10,3 +10,4 @@ rebar
 *.dump
 buildplt
 dialyzer*
+*~

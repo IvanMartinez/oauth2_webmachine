@@ -21,10 +21,21 @@ Add a user in the command shell of the Erlang instance running the server with
 
     > oauth2_ets_backend:add_user(<<"User1">>, <<"Password1">>, [<<"root.a.*">>, <<"root.x.y">>]).
 
-Use =curl= to send requests in the system command shell like
+Use curl to send requests in the system command shell like
 
     $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1&scope=root.a.b+root.x.y"
     $ curl -v -X GET "http://127.0.0.1:8000/owner_token?grant_type=password&username=User1&password=Password1&scope=root.a.b+root.x.y"
+
+### Client Credentials Grant
+
+Add a client in the command shell of the Erlang instance running the server with
+
+    > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"Uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
+
+Use curl to send requests in the system command shell like
+
+    $ curl -v -X POST http://127.0.0.1:8000/client_token -d "grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.b root.x.y"
+    $ curl -v -X GET "http://127.0.0.1:8000/client_token?grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.b+root.x.y"
 
 ## OAuth 2 implementation
 
@@ -34,9 +45,15 @@ http://tools.ietf.org/html/rfc6749
 
 Below are some considerations and clarifications about this implementaton, referred to the section number in the specification:
 
+2.3. Client Authentication
+
+Both the use of HTTP Basic authentication [RFC2617], or client_id and client_secret parameters, are supported. If a client wrongly uses both in the same request, only the HTTP Basic authentication is considered.
+
 3.3. Access Token Scope
 
 Scopes may be separated by "+" and/or "%20" characters. If the requested scope is a subset of the registered scope, the response returns the requested scope. If the request contains no scope parameter, the response returns the registered scope. If the registered scope is empty, and the request contains no scope parameter or its value is empty, the response returns an empty scope value.
+
+For more information about scope validation, see https://github.com/IvanMartinez/oauth2 README.md file.
 
 5.2. Error Response
 

@@ -45,9 +45,7 @@ process(ReqData, Params, Context) ->
                         {ok, _Identity, Response} ->
                             {ok, Token} = 
                                 oauth2_response:access_token(Response),
-                            %% There is no oauth2_response function to extract 
-                            %% the type from a response
-                            Type = <<"bearer">>,
+                            {ok, Type} = oauth2_response:token_type(Response),
                             {ok, Expires} = 
                                 oauth2_response:expires_in(Response),
                             {ok, Scope} = oauth2_response:scope(Response),

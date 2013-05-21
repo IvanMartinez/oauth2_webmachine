@@ -43,7 +43,7 @@ make_post_wrq(Path, [], Headers) ->
     Request = wrq:create('POST', http, {1,1}, Path, 
                           mochiweb_headers:from_list(Headers)),
     wrq:set_req_body(<<"foo">>, Request);
-make_post_wrq(Path, Parameters, Headers) ->
+make_post_wrq(Path, _Parameters, Headers) ->
     Request = wrq:create('POST', http, {1,1}, Path,
                           mochiweb_headers:from_list(Headers)),
     wrq:set_req_body(<<"foo">>, Request).

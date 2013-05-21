@@ -1,6 +1,6 @@
 %% @author https://github.com/IvanMartinez
 %% @copyright 2013 author.
-%% @doc Example webmachine_resource.
+%% @doc Implements RFC6749 4.1 Authorization Code Grant, step 2 of 3.
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
 
@@ -10,8 +10,6 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 -include("../include/oauth2_request.hrl").
-
--type(wm_reqdata() :: #wm_reqdata{}).
 
 init([]) -> {ok, undefined}.
 
@@ -31,10 +29,10 @@ process_post(ReqData, Context) ->
 %% Internal functions
 %% ====================================================================
 
--spec process(ReqData   :: wm_reqdata(),
+-spec process(ReqData   :: #wm_reqdata{},
               Params    :: list(string()),
               Context   :: term()) ->
-          wm_reqdata().
+          {{halt, pos_integer()}, #wm_reqdata{}, _}.
 process(ReqData, Params, Context) ->
     case oauth2_wrq:get_request_id(Params) of
         undefined ->
@@ -46,29 +44,34 @@ process(ReqData, Params, Context) ->
                                      redirect_uri = RedirectUri,
                                      scope = Scope, 
                                      state = State}} ->
-error_logger:info_msg("ClientId ~p~n", [ClientId]),
-error_logger:info_msg("RedirectUri ~p~n", [RedirectUri]),
-error_logger:info_msg("Scope ~p~n", [Scope]),
-error_logger:info_msg("State ~p~n", [State]),
                     case oauth2_wrq:get_owner_credentials(Params) of
                         undefined ->
-                            oauth2_wrq:html_response(ReqData, 400, html:bad_request(),
-                                             Context);
+                            oauth2_wrq:html_response(ReqData, 400, 
+                                                     html:bad_request(),
+                                                     Context);
                         {Username, Password} ->
-error_logger:info_msg("username ~p~n", [Username]),
-error_logger:info_msg("password ~p~n", [Password]),
-
-                            case oauth2_ets_backend:authenticate_username_password(
-                                   Username, Password) of
-                                {ok, OwnerIdentity} ->
-                                    issue_code_grant(ClientId, RedirectUri, 
-                                                     OwnerIdentity, Scope, 
-                                                     State);
-                                {error, _} ->
+                            case oauth2:issue_code_grant(ClientId, RedirectUri,
+                                                         Username, Password,
+                                                         Scope) of
+                                {error, unauthorized_client} ->
+                                    oauth2_wrq:redirected_error_response(
+                                      ReqData, RedirectUri, unauthorized_client,
+                                      State, Context);
+                                {error, invalid_scope} ->
+                                    oauth2_wrq:redirected_error_response(
+                                      ReqData, RedirectUri, invalid_scope,
+                                      State, Context);
+                                {error, access_denied} ->
                                     oauth2_wrq:redirected_error_response(
                                       ReqData, RedirectUri, access_denied,
-                                      State, Context)
-
+                                      State, Context);
+                                {ok, _Identity, Response} ->
+                                    {ok, Code} =
+                                        oauth2_response:access_code(Response),
+                                    oauth2_wrq:
+                                    redirected_authorization_code_response(
+                                      ReqData, RedirectUri, Code, State, 
+                                      Context)
                             end
                     end;
                 {error, _} ->
@@ -76,20 +79,3 @@ error_logger:info_msg("password ~p~n", [Password]),
                                              html:request_timeout(), Context)
             end
     end.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-
--spec issue_code_grant(ClientId, RedirectionUri, OwnerIdentity, Scope, State)
-                       -> {ok, Identity, Response} | {error, Reason} when
-      ClientId          :: binary(),
-      RedirectionUri    :: binary() | undefined,
-      OwnerIdentity     :: term(),
-      Scope             :: binary(),
-      State             :: binary() | undefined,
-      Identity          :: term(),
-      Response          :: oauth2_response:response(),
-      Reason            :: binary().
-issue_code_grant(ClientId, RedirectionUri, OwnerIdentity, Scope, State) ->
-    ok.

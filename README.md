@@ -15,27 +15,54 @@ Execute unit tests with
 
     $ rebar eunit skip_deps=true
 
+In order to make the tests below work, a sample client and resource owner must be created. Execute the following commands in the shell of the Erlang instance running the server:
+
+    > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"http://client.uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
+    > oauth2_ets_backend:add_resowner(<<"User1">>, <<"Password1">>, [<<"root1.z">>, <<"root2.*">>]).
+
+The tests use [curl](http://curl.haxx.se/) to send requests. Both http GET and POST methods are supported, so the following two are equivalent:
+
+    $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1"
+    $ curl -v -X GET "http://127.0.0.1:8000/owner_token?grant_type=password&username=User1&password=Password1"
+
+
+### Authorization Code Grant
+
+Send a code request with
+
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_code -d "response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root.a.b root.x.y&state=foo"
+
+The server responds with a HTML form for resource owner authentication. Notice the value of the request_id field
+
+    <input type="hidden" name="request_id" value="mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump">
+
+Use that value to create and send a response to the form, like
+
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_form -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+
+The server responds with a HTTP 302 status, and the authorization code is in the Location field of the header
+
+    Location: http://client.uri?code=cWBQ1GF7sK05hX8j3dlF76YPNmztZEgb&state=foo
+
+Use that code to request an access token
+
+    $ curl -v -X POST http://127.0.0.1:8000/access_token -d "grant_type=authorization_code&client_id=Client1&client_secret=Secret1&redirect_uri=http://client.uri&code=cWBQ1GF7sK05hX8j3dlF76YPNmztZEgb"
+
+Another way of testing this flow is opening test/auth_code_test.html with a browser. The first form will ask for the values of the fields of the first request, and from there the flow will be handled by the browser. If nobody is listening at the redirection URI the flow will end in a 404 Not Found error, but the code should be visible in the URI of the browser
+
+    http://127.0.0.1:8000/Uri?code=MWOqlwshyblAHm3AvNPFf2c96tAtZYsG&state=foo
+
 ### Resource Owner Password Credentials Grant
 
-Add a user in the command shell of the Erlang instance running the server with
+Send an access token request with
 
-    > oauth2_ets_backend:add_user(<<"User1">>, <<"Password1">>, [<<"root.a.*">>, <<"root.x.y">>]).
-
-Use curl to send requests in the system command shell like
-
-    $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1&scope=root.a.b+root.x.y"
-    $ curl -v -X GET "http://127.0.0.1:8000/owner_token?grant_type=password&username=User1&password=Password1&scope=root.a.b+root.x.y"
+    $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1&scope=root1.z+root2.c.d"
 
 ### Client Credentials Grant
 
-Add a client in the command shell of the Erlang instance running the server with
+Send an access token request with
 
-    > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"Uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
-
-Use curl to send requests in the system command shell like
-
-    $ curl -v -X POST http://127.0.0.1:8000/client_token -d "grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.b root.x.y"
-    $ curl -v -X GET "http://127.0.0.1:8000/client_token?grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.b+root.x.y"
+    $ curl -v -X POST http://127.0.0.1:8000/client_token -d "grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.c"
 
 ## OAuth 2 implementation
 
@@ -58,7 +85,7 @@ Registering multiple redirection endpoints for a client is not allowed.
 
 Scopes may be separated by "+" and/or "%20" characters. If the requested scope is a subset of the registered scope, the response returns the requested scope. If the request contains no scope parameter, the response returns the registered scope. If the registered scope is empty, and the request contains no scope parameter or its value is empty, the response returns an empty scope value.
 
-For more information about scope validation, see https://github.com/IvanMartinez/oauth2 README.md file.
+For more information about scope validation, see https://github.com/kivra/oauth2 README.md file.
 
 4.1. Authorization Code Grant
 4.1.2.1. Error Response
@@ -71,6 +98,10 @@ The following errors may occur before the existence of a redirection URI is conf
 - HTTP 408 Request timeout. The server couldn't find stored data of the initial request. This is probably because the resource owner took too long to answer the authentication form.
 
 Any other error or successful response is forwarded to the registered redirection URI of the client with a HTTP 302 response, as explained in the specification.
+
+4.1.3. Access Token Request
+
+The redirect_uri parameter is always required, even if it wasn't included in authorization request.
 
 5.2. Error Response
 

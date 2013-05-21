@@ -58,7 +58,7 @@ process(ReqData, Params, Context) ->
                             oauth2_wrq:json_error_response(ReqData,
                                                            invalid_scope, 
                                                            Context);
-                        {error, _Reason} ->
+                        {error, invalid_client} ->
                             oauth2_wrq:json_error_response(ReqData, 
                                                            invalid_client,
                                                            Context)

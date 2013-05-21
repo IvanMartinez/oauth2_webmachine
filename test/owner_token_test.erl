@@ -34,15 +34,16 @@ before_tests() ->
     meck:new(oauth2_config),
     meck:expect(oauth2_config, backend, fun() -> oauth2_ets_backend end),
     meck:expect(oauth2_config, expiry_time, fun(_) -> 3600 end),
+    meck:expect(oauth2_config, token_generation, fun() -> oauth2_token end),
     meck:new(oauth2_token),
-    meck:expect(oauth2_token, generate, fun() -> <<?TOKENCODE>> end),
+    meck:expect(oauth2_token, generate, fun(_) -> <<?TOKENCODE>> end),
     oauth2_ets_backend:start(),
-    oauth2_ets_backend:add_user(<<?USER1USERNAME>>, <<?USER1PASSWORD>>,
+    oauth2_ets_backend:add_resowner(<<?USER1USERNAME>>, <<?USER1PASSWORD>>,
                                 ?USER1SCOPE),
     ok.
 
 after_tests(_Config) ->
-    oauth2_ets_backend:delete_user(?USER1USERNAME),
+    oauth2_ets_backend:delete_resowner(?USER1USERNAME),
     oauth2_ets_backend:stop(),
     meck:unload(oauth2_token),
     meck:unload(oauth2_config),

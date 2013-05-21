@@ -1,6 +1,6 @@
 %% @author https://github.com/IvanMartinez
 %% @copyright 2013 author.
-%% @doc Example webmachine_resource.
+%% @doc Implements RFC6749 4.1 Authorization Code Grant, step 1 of 3.
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(authorization_code).
@@ -8,7 +8,6 @@
          process_post/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
--type(wm_reqdata() :: #wm_reqdata{}).
 
 init([]) -> {ok, undefined}.
 
@@ -28,10 +27,10 @@ process_post(ReqData, Context) ->
 %% Internal functions
 %% ====================================================================
 
--spec process(ReqData   :: wm_reqdata(),
+-spec process(ReqData   :: #wm_reqdata{},
               Params    :: list(string()),
               Context   :: term()) ->
-          wm_reqdata().
+          {{halt, pos_integer()}, #wm_reqdata{}, _}.
 process(ReqData, Params, Context) ->
     case oauth2_wrq:get_client_id(Params) of
         undefined ->
@@ -76,9 +75,9 @@ process(ReqData, Params, Context) ->
                                                  html:invalid_redirection_uri(),
                                                  Context)
                     end;
-            _ ->
-                oauth2_wrq:html_response(ReqData, 401, html:unauthorized(),
-                                         Context)
+                _ ->
+                    oauth2_wrq:html_response(ReqData, 401, html:unauthorized(),
+                                             Context)
             end
     end.
 

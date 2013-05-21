@@ -13,11 +13,11 @@
 %% API functions
 %% ====================================================================
 
--export([parse_body/1, get_grant_type/1, get_response_type/1, 
-         get_owner_credentials/1, get_client_id/1, get_client_credentials/2, 
+-export([parse_body/1, get_client_credentials/2, get_client_id/1, get_code/1,
+         get_grant_type/1, get_response_type/1, get_owner_credentials/1,  
          get_redirect_uri/1, get_scope/1, get_state/1, get_request_id/1]).
 -export([access_token_response/6, json_error_response/3, html_response/4,
-         redirected_error_response/5]).
+         redirected_authorization_code_response/5, redirected_error_response/5]).
 
 -spec parse_body(Request :: #wm_reqdata{}) ->
           list(string()).
@@ -29,18 +29,6 @@ parse_body(Request) ->
             [];
         Body ->
             mochiweb_util:parse_qs(Body)
-    end.
-
--spec get_client_id(Params :: list(string())) ->
-          binary() | undefined.
-get_client_id([]) ->
-    undefined;
-get_client_id(Params) ->
-    case lists:keyfind("client_id", 1, Params) of
-        {"client_id", Id} ->
-            list_to_binary(Id);
-        false ->
-            undefined
     end.
 
 -spec get_client_credentials(Params     :: list(string()), 
@@ -63,6 +51,30 @@ get_client_credentials(Params, #wm_reqdata{} = Request) ->
                     undefined
             end;
         _ ->
+            undefined
+    end.
+
+-spec get_client_id(Params :: list(string())) ->
+          binary() | undefined.
+get_client_id([]) ->
+    undefined;
+get_client_id(Params) ->
+    case lists:keyfind("client_id", 1, Params) of
+        {"client_id", Id} ->
+            list_to_binary(Id);
+        false ->
+            undefined
+    end.
+
+-spec get_code(Params :: list(string())) ->
+          binary() | undefined.
+get_code([]) ->
+    undefined;
+get_code(Params) ->
+    case lists:keyfind("code", 1, Params) of
+        {"code", Code} ->
+            list_to_binary(Code);
+        false ->
             undefined
     end.
 
@@ -219,10 +231,23 @@ json_error_response(Request, Error, Context) ->
 html_response(ReqData, HttpStatus, Body, Context) ->
     {{halt, HttpStatus}, wrq:set_resp_body(Body, ReqData), Context}.
 
+-spec redirected_authorization_code_response(Request    :: #wm_reqdata{},
+                                             Uri        :: binary(),
+                                             Code       :: binary(),
+                                             State      :: binary(),
+                                             Context    :: term()) ->
+          {{halt, 302}, #wm_reqdata{}, term()}.
+redirected_authorization_code_response(Request, Uri, Code, State, Context) ->
+    {{halt, 302}, wrq:set_resp_header("Location", binary_to_list(Uri) ++
+                                          "?code=" ++ binary_to_list(Code) ++
+                                          state_to_uri(State), Request),
+     Context}.
+
 -spec redirected_error_response(Request :: #wm_reqdata{},
                                 Uri     :: binary(),
-                                Error   :: access_denied | invalid_request | 
-                                    request_timeout | server_error | 
+                                Error   :: access_denied | invalid_request |
+                                    invalid_scope | request_timeout | 
+                                    server_error | unauthorized_client |
                                     unsupported_response_type,
                                 State   :: binary(),
                                 Context :: term()) ->
@@ -233,10 +258,14 @@ redirected_error_response(Request, Uri, Error, State, Context) ->
                           "access_denied";
                       invalid_request ->
                           "invalid_request";
+                      invalid_scope ->
+                          "invalid_scope";
                       request_timeout ->
                           "request_timeout";
                       server_error ->
                           "server_error";
+                      unauthorized_client ->
+                          "unauthorized_client";
                       unsupported_response_type ->
                           "unsupported_response_type"
                   end,

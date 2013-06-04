@@ -50,9 +50,24 @@ process(ReqData, Params, Context) ->
                                                      html:bad_request(),
                                                      Context);
                         {Username, Password} ->
-                            case oauth2:issue_code_grant(ClientId, RedirectUri,
-                                                         Username, Password,
-                                                         Scope) of
+                            case oauth2:authorize_code_request(ClientId,
+                                                               RedirectUri,
+                                                               Username,
+                                                               Password,
+                                                               Scope) of
+                                {ok, Authorization} ->
+                                    Response = oauth2:issue_code(
+                                                 Authorization),
+                                    {ok, Code} =
+                                        oauth2_response:access_code(Response),
+                                    oauth2_wrq:
+                                    redirected_authorization_code_response(
+                                      ReqData, RedirectUri, Code, State, 
+                                      Context);
+                                {error, invalid_client} ->
+                                    oauth2_wrq:redirected_error_response(
+                                      ReqData, RedirectUri, invalid_client,
+                                      State, Context);
                                 {error, unauthorized_client} ->
                                     oauth2_wrq:redirected_error_response(
                                       ReqData, RedirectUri, unauthorized_client,
@@ -64,14 +79,7 @@ process(ReqData, Params, Context) ->
                                 {error, access_denied} ->
                                     oauth2_wrq:redirected_error_response(
                                       ReqData, RedirectUri, access_denied,
-                                      State, Context);
-                                {ok, _Identity, Response} ->
-                                    {ok, Code} =
-                                        oauth2_response:access_code(Response),
-                                    oauth2_wrq:
-                                    redirected_authorization_code_response(
-                                      ReqData, RedirectUri, Code, State, 
-                                      Context)
+                                      State, Context)
                             end
                     end;
                 {error, _} ->

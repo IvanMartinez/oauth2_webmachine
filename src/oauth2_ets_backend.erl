@@ -196,7 +196,7 @@ resolve_access_token(AccessToken) ->
 
 %% Not implemented yet.
 resolve_refresh_token(_RefreshToken) ->
-    {error, not_found}.
+    {error, notfound}.
 
 %% @doc Revokes an access code AccessCode, so that it cannot be used again.
 revoke_access_code(AccessCode) ->
@@ -205,11 +205,11 @@ revoke_access_code(AccessCode) ->
 
 %% Not implemented yet.
 revoke_access_token(_AccessToken) ->
-    {error, not_found}.
+    {error, notfound}.
 
 %% Not implemented yet.
 revoke_refresh_token(_RefreshToken) ->
-    {error, not_found}.
+    {error, notfound}.
 
 get_redirection_uri(ClientId) ->
     case get(?CLIENT_TABLE, ClientId) of

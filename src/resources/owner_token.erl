@@ -42,7 +42,9 @@ process(ReqData, Params, Context) ->
                     case oauth2:authorize_password(Username, Password, 
                                                    oauth2_wrq:get_scope(Params))
                         of
-                        {ok, _Identity, Response} ->
+                        {ok, Authorization} ->
+                            Response = oauth2:issue_token_and_refresh(
+                                         Authorization),
                             {ok, Token} = 
                                 oauth2_response:access_token(Response),
                             {ok, Type} = oauth2_response:token_type(Response),

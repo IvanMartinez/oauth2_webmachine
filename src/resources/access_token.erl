@@ -53,7 +53,10 @@ process(ReqData, Params, Context) ->
                                     case oauth2:authorize_code_grant(
                                            ClientId, ClientSecret, Code, 
                                            RedirectUri) of
-                                        {ok, _Identity, Response} ->
+                                        {ok, Authorization} ->
+                                            Response = 
+                                                oauth2:issue_token_and_refresh(
+                                                  Authorization),
                                             {ok, Token} = 
                                                 oauth2_response:access_token(
                                                   Response),
@@ -72,9 +75,6 @@ process(ReqData, Params, Context) ->
                                         {error, invalid_client} ->
                                             oauth2_wrq:json_error_response(
                                               ReqData, invalid_client, Context);
-%%                                         {error, invalid_uri} ->
-%%                                             oauth2_wrq:json_error_response(
-%%                                               ReqData, invalid_grant, Context);
                                         {error, invalid_grant} ->
                                             oauth2_wrq:json_error_response(
                                               ReqData, invalid_grant, Context)

@@ -57,7 +57,7 @@ process(ReqData, Params, Context) ->
                                             Response = 
                                                 oauth2:issue_token_and_refresh(
                                                   Authorization),
-                                            {ok, Token} = 
+                                            {ok, AccessToken} = 
                                                 oauth2_response:access_token(
                                                   Response),
                                             {ok, Type} = 
@@ -66,11 +66,17 @@ process(ReqData, Params, Context) ->
                                             {ok, Expires} = 
                                                 oauth2_response:expires_in(
                                                   Response),
+                                            {ok, RefreshToken} = 
+                                                oauth2_response:refresh_token(
+                                                  Response),
                                             {ok, Scope} = 
                                                 oauth2_response:scope(Response),
-                                            oauth2_wrq:access_token_response(
-                                              ReqData, binary_to_list(Token),
+                                            oauth2_wrq:
+                                            access_refresh_token_response(
+                                              ReqData, 
+                                              binary_to_list(AccessToken),
                                               binary_to_list(Type), Expires,
+                                              binary_to_list(RefreshToken),
                                               Scope, Context);
                                         {error, invalid_client} ->
                                             oauth2_wrq:json_error_response(

@@ -14,10 +14,13 @@
 %% ====================================================================
 
 -export([parse_body/1, get_client_credentials/2, get_client_id/1, get_code/1,
-         get_grant_type/1, get_response_type/1, get_owner_credentials/1,  
-         get_redirect_uri/1, get_scope/1, get_state/1, get_request_id/1]).
--export([access_token_response/6, json_error_response/3, html_response/4,
-         redirected_authorization_code_response/5, redirected_error_response/5]).
+         get_grant_type/1, get_refresh_token/1, get_response_type/1, 
+         get_owner_credentials/1, get_redirect_uri/1, get_scope/1, get_state/1,
+         get_request_id/1]).
+-export([access_token_response/6, access_refresh_token_response/7, 
+         json_error_response/3, html_response/4, 
+         redirected_authorization_code_response/5, 
+         redirected_error_response/5]).
 
 -spec parse_body(Request :: #wm_reqdata{}) ->
           list(string()).
@@ -91,8 +94,22 @@ get_grant_type(Params) ->
             client_credentials;
         {"grant_type", "password"} ->
             password;
+        {"grant_type", "refresh_token"} ->
+            refresh_token;
         {"grant_type", _} ->
             unsupported;
+        false ->
+            undefined
+    end.
+
+-spec get_refresh_token(Params :: list(string())) ->
+          binary() | undefined.
+get_refresh_token([]) ->
+    undefined;
+get_refresh_token(Params) ->
+    case lists:keyfind("refresh_token", 1, Params) of
+        {"refresh_token", Token} ->
+            list_to_binary(Token);
         false ->
             undefined
     end.
@@ -177,21 +194,41 @@ get_request_id(Params) ->
     end.
 
 -spec access_token_response(Request     :: #wm_reqdata{},
-                            Token       :: string(),
+                            AccessToken :: string(),
                             Type        :: string(),
                             Expires     :: non_neg_integer(),
                             Scope       :: [] | [string()],
                             State       :: term()) ->
     {{halt, 200}, #wm_reqdata{}, term()}.
-access_token_response(#wm_reqdata{} = Request, Token, Type, Expires, Scope, 
-                      State) ->
-    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ Token ++ 
+access_token_response(#wm_reqdata{} = Request, AccessToken, Type, Expires, 
+                      Scope, State) ->
+    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ AccessToken ++ 
                                         "\",\"token_type\":\"" ++ Type ++ 
                                         "\",\"expires_in\":" ++ 
                                         integer_to_list(Expires) ++ 
                                         ",\"scope\":\"" ++ 
                                         scope_string(Scope) ++"\"}", Request), 
      State}.
+
+-spec access_refresh_token_response(Request         :: #wm_reqdata{},
+                                    AccessToken     :: string(),
+                                    Type            :: string(),
+                                    Expires         :: non_neg_integer(),
+                                    RefreshToken    :: string(),
+                                    Scope           :: [] | [string()],
+                                    State           :: term()) ->
+    {{halt, 200}, #wm_reqdata{}, term()}.
+access_refresh_token_response(#wm_reqdata{} = Request, AccessToken, Type, 
+                              Expires, RefreshToken, Scope, State) ->
+    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ AccessToken ++ 
+                                        "\",\"token_type\":\"" ++ Type ++ 
+                                        "\",\"expires_in\":" ++ 
+                                        integer_to_list(Expires) ++ 
+                                        ",\"refresh_token\":\"" ++ 
+                                        RefreshToken ++ "\",\"scope\":\"" ++ 
+                                        scope_string(Scope) ++"\"}", Request), 
+     State}.
+
 
 -spec json_error_response(Request   :: #wm_reqdata{},
                           Error     :: invalid_client | invalid_grant | 

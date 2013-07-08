@@ -4,7 +4,7 @@
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
 
--module(authorization_form).
+-module(authorization_code_form).
 -export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, 
          process_post/2]).
 
@@ -64,10 +64,6 @@ process(ReqData, Params, Context) ->
                                     redirected_authorization_code_response(
                                       ReqData, RedirectUri, Code, State, 
                                       Context);
-                                {error, invalid_client} ->
-                                    oauth2_wrq:redirected_error_response(
-                                      ReqData, RedirectUri, invalid_client,
-                                      State, Context);
                                 {error, unauthorized_client} ->
                                     oauth2_wrq:redirected_error_response(
                                       ReqData, RedirectUri, unauthorized_client,

@@ -25,7 +25,6 @@ The tests use [curl](http://curl.haxx.se/) to send requests. Both http GET and P
     $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1"
     $ curl -v -X GET "http://127.0.0.1:8000/owner_token?grant_type=password&username=User1&password=Password1"
 
-
 ### Authorization Code Grant
 
 Send a code request with
@@ -38,7 +37,7 @@ The server responds with a HTML form for resource owner authentication. Notice t
 
 Use that value to create and send a response to the form, like
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_form -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_code_form -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
 
 The server responds with a HTTP 302 status, and the authorization code is in the Location field of the header
 
@@ -48,9 +47,32 @@ Use that code to request an access token
 
     $ curl -v -X POST http://127.0.0.1:8000/access_token -d "grant_type=authorization_code&client_id=Client1&client_secret=Secret1&redirect_uri=http://client.uri&code=cWBQ1GF7sK05hX8j3dlF76YPNmztZEgb"
 
-Another way of testing this flow is opening test/auth_code_test.html with a browser. The first form will ask for the values of the fields of the first request, and from there the flow will be handled by the browser. If nobody is listening at the redirection URI the flow will end in a 404 Not Found error, but the code should be visible in the URI of the browser
+Another way of testing this flow is opening test/authorization_code_test.html with a browser. The first form will ask for the values of the fields of the first request, and from there the flow will be handled by the browser. If nobody is listening at the redirection URI the flow will end in a 404 Not Found error, but the code should be visible in the URI of the browser
 
-    http://127.0.0.1:8000/Uri?code=MWOqlwshyblAHm3AvNPFf2c96tAtZYsG&state=foo
+    http://client.uri?code=MWOqlwshyblAHm3AvNPFf2c96tAtZYsG&state=foo
+
+### Implicit Grant
+
+Send a token request with
+
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_token -d "response_type=token&client_id=AnyClient&redirect_uri=http://anyclient.uri&scope=root1.z root2.b&state=foo"
+
+The server responds with a HTML form for resource owner authentication. Notice the value of the request_id field
+
+    <input type="hidden" name="request_id" value="mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump">
+
+Use that value to create and send a response to the form, like
+
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_token_form -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+
+The server responds with a HTTP 302 status, and the access token parameters are in the Location field of the header
+
+    Location: http://anyclient.uri?access_token=bHcbA5Q8OHlZyODcR4JwO7JOrD8bto2K&token_type=bearer&expires_in=3600&scope=root1.z root2.b&state=foo
+
+Another way of testing this flow is opening test/implicit_grant_test.html with a browser. The first form will ask for the values of the fields of the first request, and from there the flow will be handled by the browser. If nobody is listening at the redirection URI the flow will end in a 404 Not Found error, but the access token parameters should be visible in the URI of the browser
+
+    http://anyclient.uri?access_token=67gPEezhJAjbeq0VvgoaURi8HkhGWlOx&token_type=bearer&expires_in=3600&scope=root1.z%20root2.b&state=foo
+
 
 ### Resource Owner Password Credentials Grant
 

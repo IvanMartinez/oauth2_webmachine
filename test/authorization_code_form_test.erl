@@ -1,7 +1,7 @@
 %% @author https://github.com/IvanMartinez
 %% @doc @todo Add description to register_processor_tests.
 
--module(authorization_form_test).
+-module(authorization_code_form_test).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -108,17 +108,20 @@ bad_request_tests(_Config)->
     Request1 = test_util:make_get_wrq(?PATH, 
                                       [{"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result1, _Response1, Context1} = authorization_form:process_get(Request1, 
+    {Result1, _Response1, Context1} = authorization_code_form:process_get(
+                                                                    Request1, 
                                                                     ?CONTEXT),
     Request2 = test_util:make_get_wrq(?PATH, 
                                       [{"request_id", ?REQUEST1ID},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result2, _Response2, Context2} = authorization_form:process_get(Request2, 
+    {Result2, _Response2, Context2} = authorization_code_form:process_get(
+                                                                    Request2, 
                                                                     ?CONTEXT),
     Request3 = test_util:make_get_wrq(?PATH, 
                                       [{"request_id", ?REQUEST1ID},
                                        {"username", ?USER1USERNAME}], []),
-    {Result3, _Response3, Context3} = authorization_form:process_get(Request3, 
+    {Result3, _Response3, Context3} = authorization_code_form:process_get(
+                                                                    Request3, 
                                                                     ?CONTEXT),
     [?_assertEqual({halt, 400}, Result1),
      ?_assertEqual(?CONTEXT, Context1),
@@ -133,7 +136,8 @@ request_timeout_tests(_Config)->
                                       [{"request_id", "foo"},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result1, _Response1, Context1} = authorization_form:process_get(Request1,
+    {Result1, _Response1, Context1} = authorization_code_form:process_get(
+                                                                      Request1,
                                                                       ?CONTEXT),
     [?_assertEqual({halt, 408}, Result1),
      ?_assertEqual(?CONTEXT, Context1)
@@ -144,13 +148,15 @@ unauthorized_client_tests(_Config) ->
                                       [{"request_id", ?REQUEST3ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result1, Response1, Context1} = authorization_form:process_get(Request1,
+    {Result1, Response1, Context1} = authorization_code_form:process_get(
+                                                                     Request1,
                                                                      ?CONTEXT),
     Request2 = test_util:make_get_wrq(?PATH, 
                                       [{"request_id", ?REQUEST4ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result2, Response2, Context2} = authorization_form:process_get(Request2,
+    {Result2, Response2, Context2} = authorization_code_form:process_get(
+                                                                     Request2,
                                                                      ?CONTEXT),
     [?_assertEqual({halt, 302}, Result1),
      ?_assertEqual(?REQUEST3URI ++"?error=unauthorized_client", 
@@ -168,13 +174,15 @@ invalid_scope_tests(_Config) ->
                                       [{"request_id", ?REQUEST5ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result1, Response1, Context1} = authorization_form:process_get(Request1,
+    {Result1, Response1, Context1} = authorization_code_form:process_get(
+                                                                     Request1,
                                                                      ?CONTEXT),
     Request2 = test_util:make_get_wrq(?PATH, 
                                       [{"request_id", ?REQUEST6ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result2, Response2, Context2} = authorization_form:process_get(Request2,
+    {Result2, Response2, Context2} = authorization_code_form:process_get(
+                                                                     Request2,
                                                                      ?CONTEXT),
     [?_assertEqual({halt, 302}, Result1),
      ?_assertEqual(?REQUEST5URI ++"?error=invalid_scope", 
@@ -192,13 +200,15 @@ access_denied_tests(_Config)->
                                       [{"request_id", ?REQUEST1ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", "foo"}], []),
-    {Result1, Response1, Context1} = authorization_form:process_get(Request1,
+    {Result1, Response1, Context1} = authorization_code_form:process_get(
+                                                                      Request1,
                                                                       ?CONTEXT),
     Request2 = test_util:make_get_wrq(?PATH, 
                                       [{"request_id", ?REQUEST2ID},
                                        {"username", "foo"},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result2, Response2, Context2} = authorization_form:process_get(Request2,
+    {Result2, Response2, Context2} = authorization_code_form:process_get(
+                                                                     Request2,
                                                                      ?CONTEXT),
     [?_assertEqual({halt, 302}, Result1),
      ?_assertEqual(?REQUEST1URI ++"?error=access_denied", 
@@ -216,13 +226,16 @@ successful_tests(_Config) ->
                                       [{"request_id", ?REQUEST1ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result1, Response1, Context1} = authorization_form:process_get(Request1,
+    {Result1, Response1, Context1} = authorization_code_form:process_get(
+                                                                     Request1,
                                                                      ?CONTEXT),
     Request2 = test_util:make_get_wrq(?PATH, 
                                       [{"request_id", ?REQUEST2ID},
                                        {"username", ?USER1USERNAME},
                                        {"password", ?USER1PASSWORD}], []),
-    {Result2, Response2, Context2} = authorization_form:process_get(Request2, ?CONTEXT),
+    {Result2, Response2, Context2} = authorization_code_form:process_get(
+                                                                    Request2, 
+                                                                    ?CONTEXT),
     [?_assertEqual({halt, 302}, Result1),
      ?_assertEqual(?REQUEST1URI ++ "?code=" ++ ?TOKENCODE, 
                    wrq:get_resp_header("Location", Response1)),

@@ -52,10 +52,12 @@ process(ReqData, Params, Context) ->
                                           StateParam),
                                     ScopeString = scope_string(Params),
                                     oauth2_wrq:html_response(ReqData, 200,
-                                               html:authorization_form(ClientId,
-                                                                    ScopeString,
-                                                                    RequestId),
-                                                             Context);
+                                               html:authorization_form(
+                                                     ClientId,
+                                                     ScopeString,
+                                                     RequestId,
+                                                     "authorization_code_form"),
+                                               Context);
                                 undefined ->
                                     oauth2_wrq:redirected_error_response(
                                       ReqData, RegisteredUri, invalid_request,

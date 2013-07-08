@@ -1,5 +1,6 @@
 %% @author https://github.com/IvanMartinez
 %% @copyright 2013 author.
+%% @doc Implements RFC6749 4.1 Authorization Code Grant, step 3 of 3.
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(access_token).

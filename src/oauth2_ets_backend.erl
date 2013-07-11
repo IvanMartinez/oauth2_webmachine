@@ -24,7 +24,7 @@
          revoke_access_code/1, revoke_access_token/1, revoke_refresh_token/1, 
          get_client_identity/1, get_redirection_uri/1, 
          verify_redirection_uri/2, verify_client_scope/2,
-         verify_resowner_scope/2
+         verify_resowner_scope/2, verify_scope/2
         ]).
 
 -define(ACCESS_CODE_TABLE, access_codes).
@@ -195,8 +195,16 @@ resolve_access_token(AccessToken) ->
     end.
 
 %% Not implemented yet.
-resolve_refresh_token(_RefreshToken) ->
-    {error, notfound}.
+resolve_refresh_token(RefreshToken) ->
+    %% The case trickery is just here to make sure that
+    %% we don't propagate errors that cannot be legally
+    %% returned from this function according to the spec.
+    case get(?REFRESH_TOKEN_TABLE, RefreshToken) of
+        Value = {ok, _} ->
+            Value;
+        Error = {error, notfound} ->
+            Error
+    end.
 
 %% @doc Revokes an access code AccessCode, so that it cannot be used again.
 revoke_access_code(AccessCode) ->
@@ -246,28 +254,19 @@ verify_redirection_uri(#client{redirect_uri = RegisteredUri}, RegisteredUri) ->
 verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, _DifferentUri) ->
     {error, baduri}.
 
-verify_client_scope(#client{scope = RegisteredScope}, undefined) ->
-    {ok, RegisteredScope};
-verify_client_scope(#client{scope = _RegisteredScope}, []) ->
-    {ok, []};
-verify_client_scope(#client{scope = []}, _Scope) ->
-    {error, invalid_scope};
 verify_client_scope(#client{scope = RegisteredScope}, Scope) ->
-    case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), 
-                                   oauth2_priv_set:new(RegisteredScope)) of
-        true ->
-            {ok, Scope};
-        false ->
-            {error, badscope}
-    end.
+    verify_scope(RegisteredScope, Scope).
 
-verify_resowner_scope(#resowner{scope = RegisteredScope}, undefined) ->
-    {ok, RegisteredScope};
-verify_resowner_scope(#resowner{scope = _RegisteredScope}, []) ->
-    {ok, []};
-verify_resowner_scope(#resowner{scope = []}, _Scope) ->
-    {error, invalid_scope};
 verify_resowner_scope(#resowner{scope = RegisteredScope}, Scope) ->
+    verify_scope(RegisteredScope, Scope).
+
+verify_scope(RegisteredScope, undefined) ->
+    {ok, RegisteredScope};
+verify_scope(_RegisteredScope, []) ->
+    {ok, []};
+verify_scope([], _Scope) ->
+    {error, invalid_scope};
+verify_scope(RegisteredScope, Scope) ->
     case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), 
                                    oauth2_priv_set:new(RegisteredScope)) of
         true ->
@@ -302,4 +301,4 @@ new_request_id() ->
         {error, _} ->
             RequestId
     end.
-        
+     

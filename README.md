@@ -86,6 +86,16 @@ Send an access token request with
 
     $ curl -v -X POST http://127.0.0.1:8000/client_token -d "grant_type=client_credentials&client_id=Client1&client_secret=Secret1&scope=root.a.c"
 
+### Refreshing an Access Token
+
+If the Authorization Code Grant flow is performed succesfully, the response to the final request should include a refresh token as follows
+
+    "refresh_token":"EydKXViAHx7aAedoiGsKrrlBQneMpjpf"
+
+Obtain a new access token from the refresh token with 
+
+    $ curl -v -X POST http://127.0.0.1:8000/refresh_token -d "grant_type=refresh_token&client_id=Client1&client_secret=Secret1&refresh_token=EydKXViAHx7aAedoiGsKrrlBQneMpjpf&scope=root.a.b root.x.y"
+
 ## OAuth 2 implementation
 
 This server is intended to comply with this specification:

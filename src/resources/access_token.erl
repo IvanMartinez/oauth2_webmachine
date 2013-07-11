@@ -74,11 +74,9 @@ process(ReqData, Params, Context) ->
                                                 oauth2_response:scope(Response),
                                             oauth2_wrq:
                                             access_refresh_token_response(
-                                              ReqData, 
-                                              binary_to_list(AccessToken),
-                                              binary_to_list(Type), Expires,
-                                              binary_to_list(RefreshToken),
-                                              Scope, Context);
+                                              ReqData, AccessToken, Type,
+                                              Expires, RefreshToken, Scope,
+                                              Context);
                                         {error, invalid_client} ->
                                             oauth2_wrq:json_error_response(
                                               ReqData, invalid_client, Context);

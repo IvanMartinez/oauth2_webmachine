@@ -3,7 +3,6 @@
 %% @doc Implements RFC6749 4.1 Implicit Grant, step 2 of 2.
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
-
 -module(authorization_token_form).
 -export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, 
          process_post/2]).

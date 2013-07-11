@@ -7,7 +7,6 @@
 -include_lib("webmachine/include/wm_reqdata.hrl").
 
 -define(AUTHENTICATE_REALM, "oauth2_webmachine").
-%-type(wm_reqdata() :: #wm_reqdata{}).
 
 %% ====================================================================
 %% API functions
@@ -83,8 +82,8 @@ get_code(Params) ->
     end.
 
 -spec get_grant_type(Params :: list(string())) ->
-          authorization_code | client_credentials | password | undefined | 
-              unsupported.
+          authorization_code | client_credentials | password | refresh_token |
+              undefined | unsupported.
 get_grant_type([]) ->
     undefined;
 get_grant_type(Params) ->
@@ -197,16 +196,18 @@ get_request_id(Params) ->
     end.
 
 -spec access_token_response(Request     :: #wm_reqdata{},
-                            AccessToken :: string(),
-                            Type        :: string(),
+                            AccessToken :: binary(),
+                            Type        :: binary(),
                             Expires     :: non_neg_integer(),
-                            Scope       :: [] | [string()],
+                            Scope       :: list(binary()),
                             State       :: term()) ->
     {{halt, 200}, #wm_reqdata{}, term()}.
 access_token_response(#wm_reqdata{} = Request, AccessToken, Type, Expires, 
                       Scope, State) ->
-    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ AccessToken ++ 
-                                        "\",\"token_type\":\"" ++ Type ++ 
+    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ 
+                                        binary_to_list(AccessToken) ++ 
+                                        "\",\"token_type\":\"" ++ 
+                                        binary_to_list(Type) ++ 
                                         "\",\"expires_in\":" ++ 
                                         integer_to_list(Expires) ++ 
                                         ",\"scope\":\"" ++ 
@@ -214,21 +215,24 @@ access_token_response(#wm_reqdata{} = Request, AccessToken, Type, Expires,
      State}.
 
 -spec access_refresh_token_response(Request         :: #wm_reqdata{},
-                                    AccessToken     :: string(),
-                                    Type            :: string(),
+                                    AccessToken     :: binary(),
+                                    Type            :: binary(),
                                     Expires         :: non_neg_integer(),
-                                    RefreshToken    :: string(),
-                                    Scope           :: [] | [string()],
+                                    RefreshToken    :: binary(),
+                                    Scope           :: list(binary()),
                                     State           :: term()) ->
     {{halt, 200}, #wm_reqdata{}, term()}.
 access_refresh_token_response(#wm_reqdata{} = Request, AccessToken, Type, 
                               Expires, RefreshToken, Scope, State) ->
-    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ AccessToken ++ 
-                                        "\",\"token_type\":\"" ++ Type ++ 
+    {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ 
+                                        binary_to_list(AccessToken) ++ 
+                                        "\",\"token_type\":\"" ++ 
+                                        binary_to_list(Type) ++ 
                                         "\",\"expires_in\":" ++ 
                                         integer_to_list(Expires) ++ 
                                         ",\"refresh_token\":\"" ++ 
-                                        RefreshToken ++ "\",\"scope\":\"" ++ 
+                                        binary_to_list(RefreshToken) ++
+                                        "\",\"scope\":\"" ++
                                         scope_string(Scope) ++"\"}", Request), 
      State}.
 
@@ -346,7 +350,7 @@ b64_credentials(B64String) ->
         _ -> undefined
     end.
 
--spec scope_string(Scope :: [binary()]) ->
+-spec scope_string(Scope :: list(binary())) ->
           string().
 scope_string([]) ->
     "";

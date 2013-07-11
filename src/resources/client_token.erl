@@ -51,11 +51,9 @@ process(ReqData, Params, Context) ->
                             {ok, Expires} = 
                                 oauth2_response:expires_in(Response),
                             {ok, Scope} = oauth2_response:scope(Response),
-                            oauth2_wrq:access_token_response(ReqData, 
-                                                          binary_to_list(Token),
-                                                          binary_to_list(Type),
-                                                          Expires, Scope,
-                                                          Context);
+                            oauth2_wrq:access_token_response(ReqData, Token,
+                                                             Type, Expires,
+                                                             Scope, Context);
                         {error, invalid_scope} ->
                             oauth2_wrq:json_error_response(ReqData,
                                                            invalid_scope, 

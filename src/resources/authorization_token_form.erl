@@ -51,10 +51,10 @@ process(ReqData, Params, Context) ->
                         {Username, Password} ->
                             case oauth2:authorize_password(Username,
                                                            Password,
-                                                           Scope) of
+                                                           Scope, none) of
                                 {ok, Authorization} ->
                                     Response = oauth2:issue_token(
-                                                 Authorization),
+                                                 Authorization, none),
                                     {ok, Token} = oauth2_response:access_token(
                                                     Response),
                                     {ok, Type} =  oauth2_response:token_type(

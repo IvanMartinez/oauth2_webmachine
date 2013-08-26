@@ -40,11 +40,12 @@ process(ReqData, Params, Context) ->
                                                    Context);
                 {Username, Password} ->
                     case oauth2:authorize_password(Username, Password, 
-                                                   oauth2_wrq:get_scope(Params))
+                                                   oauth2_wrq:get_scope(Params),
+                                                   none)
                         of
                         {ok, Authorization} ->
                             Response = oauth2:issue_token_and_refresh(
-                                         Authorization),
+                                         Authorization, none),
                             {ok, Token} = 
                                 oauth2_response:access_token(Response),
                             {ok, Type} = oauth2_response:token_type(Response),

@@ -12,19 +12,18 @@
 
 %%% API
 -export([start/0, stop/0, add_resowner/2, add_resowner/3, delete_resowner/1, 
-         add_client/4, delete_client/1, store_request/4, retrieve_request/1, 
-         get_user_identity/1 
+         add_client/4, delete_client/1, retrieve_request/1 
         ]).
 
 %%% OAuth2 backend functionality
--export([authenticate_username_password/2, authenticate_client/2, 
-         associate_access_code/2, associate_access_token/2,
-         associate_refresh_token/2, resolve_access_code/1, 
-         resolve_access_token/1, resolve_refresh_token/1, 
-         revoke_access_code/1, revoke_access_token/1, revoke_refresh_token/1, 
-         get_client_identity/1, get_redirection_uri/1, 
-         verify_redirection_uri/2, verify_client_scope/2,
-         verify_resowner_scope/2, verify_scope/2
+-export([authenticate_username_password/3, authenticate_client/3, 
+         associate_access_code/3, associate_access_token/3,
+         associate_refresh_token/3, resolve_access_code/2, 
+         resolve_access_token/2, resolve_refresh_token/2, 
+         revoke_access_code/2, revoke_access_token/2, revoke_refresh_token/2, 
+         get_client_identity/2, get_redirection_uri/2, store_request/4, 
+         verify_redirection_uri/3, verify_client_scope/3,
+         verify_resowner_scope/3, verify_scope/3
         ]).
 
 -define(ACCESS_CODE_TABLE, access_codes).
@@ -140,7 +139,7 @@ retrieve_request(RequestId) ->
 %%% OAuth2 backend functions
 %%%===================================================================
 
-authenticate_username_password(Username, Password) ->
+authenticate_username_password(Username, Password, _AppContext) ->
     case get(?USER_TABLE, Username) of
         {ok, #resowner{password = Password} = Identity} ->
             {ok, Identity};
@@ -150,7 +149,7 @@ authenticate_username_password(Username, Password) ->
             {error, notfound}
     end.
 
-authenticate_client(ClientId, ClientSecret) ->
+authenticate_client(ClientId, ClientSecret, _AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, #client{client_secret = ClientSecret} = Identity} ->
             {ok, Identity};
@@ -160,19 +159,19 @@ authenticate_client(ClientId, ClientSecret) ->
             {error, notfound}
     end.
 
-associate_access_code(AccessCode, Context) ->
+associate_access_code(AccessCode, Context, _AppContext) ->
     put(?ACCESS_CODE_TABLE, AccessCode, Context),
     ok.
 
-associate_access_token(AccessToken, Context) ->
+associate_access_token(AccessToken, Context, _AppContext) ->
     put(?ACCESS_TOKEN_TABLE, AccessToken, Context),
     ok.
 
-associate_refresh_token(RefreshToken, Context) ->
+associate_refresh_token(RefreshToken, Context, _AppContext) ->
     put(?REFRESH_TOKEN_TABLE, RefreshToken, Context),
     ok.
 
-resolve_access_code(AccessCode) ->
+resolve_access_code(AccessCode, _AppContext) ->
     %% The case trickery is just here to make sure that
     %% we don't propagate errors that cannot be legally
     %% returned from this function according to the spec.
@@ -183,7 +182,7 @@ resolve_access_code(AccessCode) ->
             Error
     end.
 
-resolve_access_token(AccessToken) ->
+resolve_access_token(AccessToken, _AppContext) ->
     %% The case trickery is just here to make sure that
     %% we don't propagate errors that cannot be legally
     %% returned from this function according to the spec.
@@ -195,7 +194,7 @@ resolve_access_token(AccessToken) ->
     end.
 
 %% Not implemented yet.
-resolve_refresh_token(RefreshToken) ->
+resolve_refresh_token(RefreshToken, _AppContext) ->
     %% The case trickery is just here to make sure that
     %% we don't propagate errors that cannot be legally
     %% returned from this function according to the spec.
@@ -207,19 +206,19 @@ resolve_refresh_token(RefreshToken) ->
     end.
 
 %% @doc Revokes an access code AccessCode, so that it cannot be used again.
-revoke_access_code(AccessCode) ->
+revoke_access_code(AccessCode, _AppContext) ->
     delete(?ACCESS_CODE_TABLE, AccessCode),
     ok.
 
 %% Not implemented yet.
-revoke_access_token(_AccessToken) ->
+revoke_access_token(_AccessToken, _AppContext) ->
     {error, notfound}.
 
 %% Not implemented yet.
-revoke_refresh_token(_RefreshToken) ->
+revoke_refresh_token(_RefreshToken, _AppContext) ->
     {error, notfound}.
 
-get_redirection_uri(ClientId) ->
+get_redirection_uri(ClientId, _AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, #client{redirect_uri = RedirectUri}} ->
             {ok, RedirectUri};
@@ -227,7 +226,7 @@ get_redirection_uri(ClientId) ->
             Error
     end.
 
-get_client_identity(ClientId) ->
+get_client_identity(ClientId, _AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, Identity} ->
             {ok, Identity};
@@ -235,38 +234,43 @@ get_client_identity(ClientId) ->
             Error
     end.
 
-get_user_identity(Username) ->
-    case get(?USER_TABLE, Username) of
-        {ok, Identity} ->
-            {ok, Identity};
-        Error = {error, notfound} ->
-            Error
-    end.
+%% get_user_identity(Username, _AppContext) ->
+%%     case get(?USER_TABLE, Username) of
+%%         {ok, Identity} ->
+%%             {ok, Identity};
+%%         Error = {error, notfound} ->
+%%             Error
+%%     end.
 
-verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, undefined) ->
+verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, undefined,
+                       _AppContext) ->
     ok;
-verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, <<>>) ->
+verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, <<>>,
+                       _AppContext) ->
     ok;
-verify_redirection_uri(#client{redirect_uri = <<>>}, _Uri) ->
+verify_redirection_uri(#client{redirect_uri = <<>>}, _Uri,
+                       _AppContext) ->
     {error, baduri};
-verify_redirection_uri(#client{redirect_uri = RegisteredUri}, RegisteredUri) ->
+verify_redirection_uri(#client{redirect_uri = RegisteredUri}, RegisteredUri,
+                       _AppContext) ->
     ok;
-verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, _DifferentUri) ->
+verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, _DifferentUri,
+                       _AppContext) ->
     {error, baduri}.
 
-verify_client_scope(#client{scope = RegisteredScope}, Scope) ->
-    verify_scope(RegisteredScope, Scope).
+verify_client_scope(#client{scope = RegisteredScope}, Scope, AppContext) ->
+    verify_scope(RegisteredScope, Scope, AppContext).
 
-verify_resowner_scope(#resowner{scope = RegisteredScope}, Scope) ->
-    verify_scope(RegisteredScope, Scope).
+verify_resowner_scope(#resowner{scope = RegisteredScope}, Scope, AppContext) ->
+    verify_scope(RegisteredScope, Scope, AppContext).
 
-verify_scope(RegisteredScope, undefined) ->
+verify_scope(RegisteredScope, undefined, _AppContext) ->
     {ok, RegisteredScope};
-verify_scope(_RegisteredScope, []) ->
+verify_scope(_RegisteredScope, [], _AppContext) ->
     {ok, []};
-verify_scope([], _Scope) ->
+verify_scope([], _Scope, _AppContext) ->
     {error, invalid_scope};
-verify_scope(RegisteredScope, Scope) ->
+verify_scope(RegisteredScope, Scope, _AppContext) ->
     case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), 
                                    oauth2_priv_set:new(RegisteredScope)) of
         true ->

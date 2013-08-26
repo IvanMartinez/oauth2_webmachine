@@ -41,10 +41,11 @@ process(ReqData, Params, Context) ->
                 {ClientId, ClientSecret} ->
                     case oauth2:authorize_client_credentials(ClientId, 
                                                 ClientSecret, 
-                                                oauth2_wrq:get_scope(Params)) of
+                                                oauth2_wrq:get_scope(Params),
+                                                             none) of
                         {ok, Authorization} ->
                             Response = oauth2:issue_token(
-                                         Authorization),
+                                         Authorization, none),
                             {ok, Token} = 
                                 oauth2_response:access_token(Response),
                             {ok, Type} = oauth2_response:token_type(Response),

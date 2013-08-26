@@ -53,8 +53,9 @@ before_tests() ->
                                                          <<?CLIENT1_URI>>,
                                                          <<?USER1_USERNAME>>,
                                                          <<?USER1_PASSWORD>>,
-                                                         ?CLIENT1_SCOPE),
-    oauth2:issue_token_and_refresh(Authorization1),
+                                                         ?CLIENT1_SCOPE,
+                                                         none),
+    oauth2:issue_token_and_refresh(Authorization1, none),
     meck:expect(oauth2_token, generate, fun(_) -> <<?TOKEN_CODE>> end),
     ok.
 

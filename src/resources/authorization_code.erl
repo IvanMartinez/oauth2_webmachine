@@ -36,7 +36,7 @@ process(ReqData, Params, Context) ->
         undefined ->
             oauth2_wrq:html_response(ReqData, 400, html:bad_request(), Context);
         ClientId ->
-            case oauth2_ets_backend:get_redirection_uri(ClientId) of
+            case oauth2_ets_backend:get_redirection_uri(ClientId, none) of
                 {ok, RegisteredUri} ->
                     case verify_redirection_uri(
                            oauth2_wrq:get_redirect_uri(Params),

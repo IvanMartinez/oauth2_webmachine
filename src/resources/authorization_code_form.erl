@@ -54,10 +54,10 @@ process(ReqData, Params, Context) ->
                                                                RedirectUri,
                                                                Username,
                                                                Password,
-                                                               Scope) of
+                                                               Scope, none) of
                                 {ok, Authorization} ->
                                     Response = oauth2:issue_code(
-                                                 Authorization),
+                                                 Authorization, none),
                                     {ok, Code} =
                                         oauth2_response:access_code(Response),
                                     oauth2_wrq:

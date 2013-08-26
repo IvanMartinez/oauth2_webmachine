@@ -53,11 +53,11 @@ process(ReqData, Params, Context) ->
                                 {ClientId, ClientSecret} ->
                                     case oauth2:authorize_code_grant(
                                            ClientId, ClientSecret, Code, 
-                                           RedirectUri) of
+                                           RedirectUri, none) of
                                         {ok, Authorization} ->
                                             Response = 
                                                 oauth2:issue_token_and_refresh(
-                                                  Authorization),
+                                                  Authorization, none),
                                             {ok, AccessToken} = 
                                                 oauth2_response:access_token(
                                                   Response),

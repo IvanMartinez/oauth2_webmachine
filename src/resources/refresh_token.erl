@@ -47,7 +47,7 @@ process(ReqData, Params, Context) ->
                         RefreshToken ->
                             case oauth2:refresh_access_token(
                                    ClientId, ClientSecret, RefreshToken,
-                                   oauth2_wrq:get_scope(Params)) of
+                                   oauth2_wrq:get_scope(Params), none) of
                                 {ok, _Client, Response} ->
                                     {ok, AccessToken} = 
                                         oauth2_response:access_token(Response),

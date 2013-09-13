@@ -1,6 +1,8 @@
 # oauth2_webmachine
 
-This is a sample implementation of an OAuth 2 server using Webmachine. It's intended to be used as a reference or starting point for other implementations. *It's not secure as it is*, mainly because it uses HTTP clear-text communication. 
+This is a sample implementation of an OAuth 2 server using Webmachine. It's intended to be used as a reference or starting point for other implementations. **Don't use it in a production enviroment as it is**, it hasn't been properly tested or audited for that. The authors take no responsability for any damage or issue resulting from using this implementation. Please read the LINCENSE file.
+
+It certainly **is not secure** because it uses clear-text communication. If you want to enable encryption, read the [webmachine wiki](https://github.com/basho/webmachine/wiki) or use a reverse-proxy like [Nginx](http://wiki.nginx.org/Main).
 
 ## Quickstart
 

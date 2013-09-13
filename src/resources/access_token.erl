@@ -19,7 +19,8 @@ allowed_methods(ReqData, Context) ->
     {['GET', 'POST'], ReqData, Context}.
 
 content_types_provided(ReqData, Context) ->
-    {[{"application/json;charset=UTF-8", process_get}], ReqData, Context}.
+    {[{"application/json;charset=UTF-8", process_get},
+      {"application/json;charset=UTF-8", process_post}], ReqData, Context}.
 
 process_get(ReqData, Context) ->
     process(ReqData, wrq:req_qs(ReqData), Context).

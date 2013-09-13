@@ -15,7 +15,8 @@ allowed_methods(ReqData, Context) ->
     {['GET', 'POST'], ReqData, Context}.
 
 content_types_provided(ReqData, Context) ->
-    {[{"text/html", process_get}], ReqData, Context}.
+    {[{"text/html", process_get},
+      {"text/html", process_post}], ReqData, Context}.
 
 process_get(ReqData, Context) ->
     process(ReqData, wrq:req_qs(ReqData), Context).

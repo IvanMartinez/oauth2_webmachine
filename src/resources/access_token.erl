@@ -4,7 +4,7 @@
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(access_token).
--export([init/1, allowed_methods/2, content_types_provided/2, process_get/2, 
+-export([init/1, allowed_methods/2, content_types_provided/2, to_json/2, 
          process_post/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
@@ -19,10 +19,9 @@ allowed_methods(ReqData, Context) ->
     {['GET', 'POST'], ReqData, Context}.
 
 content_types_provided(ReqData, Context) ->
-    {[{"application/json;charset=UTF-8", process_get},
-      {"application/json;charset=UTF-8", process_post}], ReqData, Context}.
+    {[{"application/json;charset=UTF-8", to_json}], ReqData, Context}.
 
-process_get(ReqData, Context) ->
+to_json(ReqData, Context) ->
     process(ReqData, wrq:req_qs(ReqData), Context).
 
 process_post(ReqData, Context) ->

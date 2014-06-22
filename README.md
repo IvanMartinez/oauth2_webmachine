@@ -1,8 +1,11 @@
 # oauth2_webmachine
 
-This is a sample implementation of an OAuth 2 server using Webmachine. It's intended to be used as a reference or starting point for other implementations. **Don't use it in a production enviroment as it is**, it hasn't been properly tested or audited for that. The authors take no responsability for any damage or issue resulting from using this implementation. Please read the LINCENSE file.
+This is a sample implementation of an OAuth 2 server using Webmachine. It's intended to be used as a reference or starting point for other implementations. **Don't use it in a production enviroment as it is**, it hasn't been properly tested or audited for that. The authors take no responsability for any damage or issue resulting from using this implementation. Please read the LICENSE file.
 
-It certainly **is not secure** because it uses clear-text communication. If you want to enable encryption, read the [webmachine wiki](https://github.com/basho/webmachine/wiki) or use a reverse-proxy like [Nginx](http://wiki.nginx.org/Main).
+It certainly **is not secure** because:
+
+- It uses clear-text communication. If you want to enable encryption, read the [webmachine wiki](https://github.com/basho/webmachine/wiki) or use a reverse-proxy like [Nginx](http://wiki.nginx.org/Main).
+- Generated authorization codes and tokens never expire. You should implement this in your server.
 
 ## Quickstart
 
@@ -22,16 +25,13 @@ In order to make the tests below work, a sample client and resource owner must b
     > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"http://client.uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
     > oauth2_ets_backend:add_resowner(<<"User1">>, <<"Password1">>, [<<"root1.z">>, <<"root2.*">>]).
 
-The tests use [curl](http://curl.haxx.se/) to send requests. Both http GET and POST methods are supported, so the following two are equivalent:
-
-    $ curl -v -X POST http://127.0.0.1:8000/owner_token -d "grant_type=password&username=User1&password=Password1"
-    $ curl -v -X GET "http://127.0.0.1:8000/owner_token?grant_type=password&username=User1&password=Password1"
+The tests use [curl](http://curl.haxx.se/) to send requests.
 
 ### Authorization Code Grant
 
 Send a code request with
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_code -d "response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root.a.b root.x.y&state=foo"
+    $ curl -v -X GET "http://127.0.0.1:8000/authorization_code?response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root.a.b+root.x.y&state=foo"
 
 The server responds with a HTML form for resource owner authentication. Notice the value of the request_id field
 
@@ -39,7 +39,7 @@ The server responds with a HTML form for resource owner authentication. Notice t
 
 Use that value to create and send a response to the form, like
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_code_form -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_code -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
 
 The server responds with a HTTP 302 status, and the authorization code is in the Location field of the header
 
@@ -57,7 +57,7 @@ Another way of testing this flow is opening test/authorization_code_test.html wi
 
 Send a token request with
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_token -d "response_type=token&client_id=AnyClient&redirect_uri=http://anyclient.uri&scope=root1.z root2.b&state=foo"
+    $ curl -v -X GET "http://127.0.0.1:8000/authorization_token?response_type=token&client_id=AnyClient&redirect_uri=http://anyclient.uri&scope=root1.z+root2.b&state=foo"
 
 The server responds with a HTML form for resource owner authentication. Notice the value of the request_id field
 
@@ -65,7 +65,7 @@ The server responds with a HTML form for resource owner authentication. Notice t
 
 Use that value to create and send a response to the form, like
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_token_form -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_token -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
 
 The server responds with a HTTP 302 status, and the access token parameters are in the Location field of the header
 

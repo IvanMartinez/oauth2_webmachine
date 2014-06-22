@@ -12,7 +12,7 @@
 
 %%% API
 -export([start/0, stop/0, add_resowner/2, add_resowner/3, delete_resowner/1, 
-         add_client/4, delete_client/1, retrieve_request/1 
+         add_client/4, delete_client/1, retrieve_request/1, store_request/4
         ]).
 
 %%% OAuth2 backend functionality
@@ -21,7 +21,7 @@
          associate_refresh_token/3, resolve_access_code/2, 
          resolve_access_token/2, resolve_refresh_token/2, 
          revoke_access_code/2, revoke_access_token/2, revoke_refresh_token/2, 
-         get_client_identity/2, get_redirection_uri/2, store_request/4, 
+         get_client_identity/2, get_redirection_uri/2,  
          verify_redirection_uri/3, verify_client_scope/3,
          verify_resowner_scope/3, verify_scope/3
         ]).
@@ -193,7 +193,6 @@ resolve_access_token(AccessToken, _AppContext) ->
             Error
     end.
 
-%% Not implemented yet.
 resolve_refresh_token(RefreshToken, _AppContext) ->
     %% The case trickery is just here to make sure that
     %% we don't propagate errors that cannot be legally
@@ -233,14 +232,6 @@ get_client_identity(ClientId, _AppContext) ->
         Error = {error, notfound} ->
             Error
     end.
-
-%% get_user_identity(Username, _AppContext) ->
-%%     case get(?USER_TABLE, Username) of
-%%         {ok, Identity} ->
-%%             {ok, Identity};
-%%         Error = {error, notfound} ->
-%%             Error
-%%     end.
 
 verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, undefined,
                        _AppContext) ->

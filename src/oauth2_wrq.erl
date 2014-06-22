@@ -23,7 +23,7 @@
          redirected_error_response/5]).
 
 -spec parse_body(Request :: #wm_reqdata{}) ->
-          list(string()).
+          list({term(), term()}).
 parse_body(Request) ->
     case wrq:req_body(Request) of
         undefined ->

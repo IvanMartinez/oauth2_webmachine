@@ -11,39 +11,103 @@
 %% API functions
 %% ====================================================================
 
--export([make_get_wrq/3, make_post_wrq/3]).
+-export([request/3,
+         request/4,
+         result_body/1,
+         result_location/1,
+         result_status/1,
+         simple_json_to_proplist/1,
+         split_url/1]).
 
--spec make_get_wrq(Path         :: string(),
-                   Parameters   :: list({string(), string() | binary()}),
-                   Headers      :: list({string(), string()})) ->
-          #wm_reqdata{}.
-make_get_wrq(Path, [], Headers) ->
-    wrq:create('GET', http, {1,1}, Path, mochiweb_headers:from_list(Headers));
-make_get_wrq(Path, Parameters, Headers) ->
-    wrq:create('GET', http, {1,1}, Path ++ "?" ++ 
-                   mochiweb_util:urlencode(Parameters),
-               mochiweb_headers:from_list(Headers)).
+-spec request(URL           :: httpc:url(),
+              Method        :: http:method(),
+              Parameters    :: proplists:proplist()) -> term().
+request(URL, Method, Parameters) ->
+    request(URL, Method, [], Parameters).
 
-%% @todo Make make_post_wrq work.
-%% Using the function below produces the following error:
-%%
-%% **in function webmachine_request:new/1 (src/webmachine_request.erl, line 107)
-%%   called as new(defined_on_call)
-%% in call from wrq:req_body/1 (src/wrq.erl, line 113)
-%% in call from oauth2_wrq:parse_body/1 (src/oauth2_wrq.erl, line 25)
-%% ...
-%% **error:function_clause
-%%
-%% Any help on how to create POST requests for unit testing will be appreciated.
--spec make_post_wrq(Path        :: string(),
-                    Parameters  :: list({string(), string() | binary()}),
-                    Headers     :: list({string(), string()})) ->
-          #wm_reqdata{}.
-make_post_wrq(Path, [], Headers) ->
-    Request = wrq:create('POST', http, {1,1}, Path, 
-                          mochiweb_headers:from_list(Headers)),
-    wrq:set_req_body(<<"foo">>, Request);
-make_post_wrq(Path, _Parameters, Headers) ->
-    Request = wrq:create('POST', http, {1,1}, Path,
-                          mochiweb_headers:from_list(Headers)),
-    wrq:set_req_body(<<"foo">>, Request).
+-spec request(URL           :: httpc:url(),
+              Method        :: http:method(),
+              Headers       :: proplists:proplist(),
+              Parameters    :: proplists:proplist()) -> term().
+request(URL, Method, Headers, Parameters) ->
+    ParametersString = proplist_to_query_string(Parameters),
+    case Method of
+        get ->
+            {ok, Result} = httpc:request(Method, 
+                                         {URL ++ "?" ++ ParametersString, 
+                                          Headers},
+                                         [], []);
+        post ->
+            {ok, Result} = httpc:request(Method, 
+                                         {URL, 
+                                          Headers, 
+                                          "application/x-www-form-urlencoded",
+                                          ParametersString},
+                                         [], [])
+    end,
+    Result.
+
+-spec result_body({httpc:status_line(), httpc:headers(), string()}) -> 
+          string().
+result_body({_, _, Body}) ->
+    Body.
+
+-spec result_location({httpc:status_line(), httpc:headers(), string()}) -> 
+          string().
+result_location({_, Headers, _}) ->
+    case proplists:get_value("location", Headers) of
+        undefined -> "";
+        Location -> Location
+    end.
+
+-spec result_status({httpc:status_line(), httpc:headers(), string()}) -> 
+          integer().
+result_status({{_, Code, _}, _, _}) ->
+    Code.
+
+-spec simple_json_to_proplist(JsonString    :: string()) -> 
+          proplists:proplist().
+simple_json_to_proplist(JsonString) ->
+    % Remove the following characters: { } "
+    AttributeValueString = re:replace(JsonString, "\{|\}|\"", "", 
+                                    [global, {return,list}]),
+    lists:filtermap(fun(AttributeValue) ->
+                            case string:tokens(AttributeValue, ":") of
+                                [Attribute, Value] ->
+                                    {true, {Attribute, Value}};
+                                _ ->
+                                    false
+                            end
+                    end,
+                    string:tokens(AttributeValueString, ",")).
+
+-spec split_url(URL :: string()) -> {string(), proplists:proplist()}.
+split_url(URL) ->
+    case string:tokens(URL, "?") of
+        [] -> {"", 0, []};
+        [BaseURL] -> {BaseURL, 0, []};
+        [BaseURL, QueryString] ->
+            QueryProplist = 
+                lists:filtermap(fun(NameValue) ->
+                                        case string:tokens(NameValue, "=") of
+                                            [Name, Value] ->
+                                                {true, {Name, Value}};
+                                            _ ->
+                                                false
+                                        end
+                                end,
+                                string:tokens(QueryString, "&")),
+            {BaseURL, QueryProplist}
+    end.
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+-spec proplist_to_query_string(Proplist :: proplists:proplist()) -> string().
+proplist_to_query_string([]) ->
+    "";
+proplist_to_query_string([{Parameter, Value}]) ->
+    Parameter ++ "=" ++ Value; 
+proplist_to_query_string([{Parameter, Value} | Remaining]) ->
+    Parameter ++ "=" ++ Value ++ "&" ++ proplist_to_query_string(Remaining).

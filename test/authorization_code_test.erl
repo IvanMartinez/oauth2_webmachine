@@ -1,19 +1,16 @@
 %% @author https://github.com/IvanMartinez
-%% @doc @todo Add description to register_processor_tests.
+%% @doc Tests for authorization_code resource.
 
 -module(authorization_code_test).
 
 -include_lib("eunit/include/eunit.hrl").
--include("../include/oauth2_request.hrl").
 
--define(PATH, "/authorization_code").
--define(CONTEXT, whatever).
--define(CLIENT1_ID, "Id1").
--define(CLIENT2_ID, "Id2").
--define(CLIENT2_URI, "Uri2").
--define(CLIENT2_SCOPE, [<<"root.a">>, <<"root.b.*">>]).
--define(REQUEST1_ID, "Request1ID").
--define(REQUEST2_ID, "Request2ID").
+-define(AUTHORIZATION_CODE_URL, "http://127.0.0.1:8000/authorization_code").
+-define(CLIENT1_ID, "Client1").
+-define(CLIENT1_URI, "http://client.uri").
+-define(CLIENT1_SCOPE, "root1.z root2.a").
+-define(USER1_USERNAME, "User1").
+-define(USER1_PASSWORD, "Password1").
 -define(STATE, "State").
 
 %% ===================================================================
@@ -24,158 +21,166 @@ setup_test_() ->
     {setup, 
         fun before_tests/0,
         fun after_tests/1,
-        fun (Config) -> [bad_request_tests(Config),
-                         unauthorized_tests(Config),
-                         unauthorized_client_tests(Config),
-                         invalid_redirection_uri_tests(Config),
-                         invalid_request_tests(Config),
-                         unsupported_response_type_tests(Config),
-                         successful_tests(Config)
+        fun (Context) -> [bad_request_tests(Context),
+                         unauthorized_client_tests(Context),
+                         invalid_scope_tests(Context),
+                         access_denied_tests(Context),
+                         successful_tests(Context)
                         ] end
     }.
 
 before_tests() ->
-    meck:new(oauth2_config),
-    meck:expect(oauth2_config, backend, fun() -> oauth2_ets_backend end),
-    meck:expect(oauth2_config, expiry_time, fun(_) -> 3600 end),
-    meck:expect(oauth2_config, token_generation, fun() -> oauth2_token end),
-    meck:new(oauth2_token),
-    meck:expect(oauth2_token, generate, fun(_) -> <<?REQUEST1_ID>> end),
-    oauth2_ets_backend:start(),
-    oauth2_ets_backend:add_client(<<?CLIENT1_ID>>, <<>>, <<>>, []),
-    oauth2_ets_backend:add_client(<<?CLIENT2_ID>>, <<>>, <<?CLIENT2_URI>>, 
-                                  ?CLIENT2_SCOPE),
+    inets:start(),
     ok.
 
-after_tests(_Config) ->
-    oauth2_ets_backend:delete_client(?CLIENT1_ID),
-    oauth2_ets_backend:delete_client(?CLIENT2_ID),
-    oauth2_ets_backend:stop(),
-    meck:unload(oauth2_token),
-    meck:unload(oauth2_config),
+after_tests(_Context) ->
+    inets:stop(),
     ok.
 
 %% ===================================================================
 %% Tests
 %% ===================================================================
 
-bad_request_tests(_Config)->
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "code"},
-                                       {"scope", "root.b.c"}], []),
-    {Result2, _Response2, Context2} = authorization_code:process_get(Request2, 
-                                                                  ?CONTEXT),
-    [?_assertEqual({halt, 400}, Result2),
-     ?_assertEqual(?CONTEXT, Context2)
+bad_request_tests(_Context)->
+    Result1 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
+                                [{"response_type", "foo"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI}]),
+    Result2 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
+                                [{"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI}]),
+    Result3 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
+                                [{"response_type", "code"},
+                                 {"redirect_uri", ?CLIENT1_URI}]),
+    Result4 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID}]),
+    Result5 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "foo"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result6 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result7 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result8 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result9 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result10 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"username", ?USER1_USERNAME}]),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(400, test_util:result_status(Result2)),
+     ?_assertEqual(400, test_util:result_status(Result3)),
+     ?_assertEqual(400, test_util:result_status(Result4)),
+     ?_assertEqual(400, test_util:result_status(Result5)),
+     ?_assertEqual(400, test_util:result_status(Result6)),
+     ?_assertEqual(400, test_util:result_status(Result7)),
+     ?_assertEqual(400, test_util:result_status(Result8)),
+     ?_assertEqual(400, test_util:result_status(Result9)),
+     ?_assertEqual(400, test_util:result_status(Result10))
     ].
 
-unauthorized_tests(_Config)->
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "code"},
-                                       {"client_id", "foo"}], []),
-    {Result2, _Response2, Context2} = authorization_code:process_get(Request2, 
-                                                                  ?CONTEXT),
-    [?_assertEqual({halt, 401}, Result2),
-     ?_assertEqual(?CONTEXT, Context2)
+unauthorized_client_tests(_Context)->
+    Result1 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", "foo"},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result2 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", "foo"},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    [?_assertEqual(403, test_util:result_status(Result1)),
+     ?_assertEqual(403, test_util:result_status(Result2))
     ].
 
-unauthorized_client_tests(_Config)->
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "code"},
-                                       {"client_id", ?CLIENT1_ID}], []),
-    {Result2, _Response2, Context2} = authorization_code:process_get(Request2, 
-                                                                  ?CONTEXT),
-    [?_assertEqual({halt, 403}, Result2),
-     ?_assertEqual(?CONTEXT, Context2)
+invalid_scope_tests(_Context) ->
+    Result1 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"scope", "foo"},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD},
+                                 {"state", ?STATE}]),
+    {LocationBaseURL1, LocationParams1} = 
+        test_util:split_url(test_util:result_location(Result1)),
+    [?_assertEqual(302, test_util:result_status(Result1)),
+     ?_assertEqual(?CLIENT1_URI, LocationBaseURL1),
+     ?_assertEqual(2, length(LocationParams1)),
+     ?_assertEqual("invalid_scope", 
+                   proplists:get_value("error", LocationParams1)),
+     ?_assertEqual(?STATE, proplists:get_value("state", LocationParams1))
     ].
 
-invalid_redirection_uri_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "code"},
-                                       {"client_id", ?CLIENT2_ID},
-                                       {"redirect_uri", "foo"}], []),
-    {Result1, _Response1, Context1} = authorization_code:process_get(Request1, 
-                                                                  ?CONTEXT),
-    [?_assertEqual({halt, 401}, Result1),
-     ?_assertEqual(?CONTEXT, Context1)
+access_denied_tests(_Context) ->
+    Result1 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"scope", ?CLIENT1_SCOPE},
+                                 {"username", "foo"},
+                                 {"password", ?USER1_PASSWORD},
+                                 {"state", ?STATE}]),
+    Result2 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"scope", ?CLIENT1_SCOPE},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", "foo"}]),
+    {LocationBaseURL1, LocationParams1} = 
+        test_util:split_url(test_util:result_location(Result1)),
+    {LocationBaseURL2, LocationParams2} = 
+        test_util:split_url(test_util:result_location(Result2)),
+    [?_assertEqual(302, test_util:result_status(Result1)),
+     ?_assertEqual(?CLIENT1_URI, LocationBaseURL1),
+     ?_assertEqual(2, length(LocationParams1)),
+     ?_assertEqual("access_denied", 
+                   proplists:get_value("error", LocationParams1)),
+     ?_assertEqual(?STATE, proplists:get_value("state", LocationParams1)),
+     ?_assertEqual(302, test_util:result_status(Result2)),
+     ?_assertEqual(?CLIENT1_URI, LocationBaseURL2),
+     ?_assertEqual(1, length(LocationParams2)),
+     ?_assertEqual("access_denied", 
+                   proplists:get_value("error", LocationParams2))
     ].
 
-invalid_request_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"client_id", ?CLIENT2_ID}], []),
-    {Result1, Response1, Context1} = authorization_code:process_get(Request1, 
-                                                                  ?CONTEXT),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"client_id", ?CLIENT2_ID},
-                                       {"redirect_uri", ?CLIENT2_URI},
-                                       {"scope", "root.a root.b.*"},
-                                       {"state", ?STATE}], []),
-    {Result2, Response2, Context2} = authorization_code:process_get(Request2, 
-                                                                  ?CONTEXT),
-    [?_assertEqual({halt, 302}, Result1),
-     ?_assertEqual(?CLIENT2_URI ++"?error=invalid_request", 
-                   wrq:get_resp_header("Location", Response1)),
-     ?_assertEqual(?CONTEXT, Context1),
-     ?_assertEqual({halt, 302}, Result2),
-     ?_assertEqual(?CLIENT2_URI ++"?error=invalid_request&state=" ++ ?STATE, 
-                   wrq:get_resp_header("Location", Response2)),
-     ?_assertEqual(?CONTEXT, Context2)
-     ].
-
-unsupported_response_type_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "password"},
-                                       {"client_id", ?CLIENT2_ID}], []),
-    {Result1, Response1, Context1} = authorization_code:process_get(Request1, 
-                                                                  ?CONTEXT),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "password"},
-                                       {"client_id", ?CLIENT2_ID},
-                                       {"redirect_uri", ?CLIENT2_URI},
-                                       {"scope", "root.a root.b.*"},
-                                       {"state", ?STATE}], []),
-    {Result2, Response2, Context2} = authorization_code:process_get(Request2, 
-                                                                  ?CONTEXT),
-    [?_assertEqual({halt, 302}, Result1),
-     ?_assertEqual(?CLIENT2_URI ++"?error=unsupported_response_type", 
-                   wrq:get_resp_header("Location", Response1)),
-     ?_assertEqual(?CONTEXT, Context1),
-     ?_assertEqual({halt, 302}, Result2),
-     ?_assertEqual(?CLIENT2_URI ++"?error=unsupported_response_type&state=" ++
-                       ?STATE, 
-                   wrq:get_resp_header("Location", Response2)),
-     ?_assertEqual(?CONTEXT, Context2)
-     ].
-
-successful_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "code"},
-                                       {"client_id", ?CLIENT2_ID}],
-                                      []),
-    {Result1, _Response1, Context1}  = authorization_code:process_get(Request1, 
-                                                                   ?CONTEXT),
-    {ok, StoredRequest1} = oauth2_ets_backend:retrieve_request(<<?REQUEST1_ID>>),
-    meck:expect(oauth2_token, generate, fun(_) -> <<?REQUEST2_ID>> end),
-    Request3 = test_util:make_get_wrq(?PATH, 
-                                      [{"response_type", "code"},
-                                       {"client_id", ?CLIENT2_ID},
-                                       {"redirect_uri", ?CLIENT2_URI},
-                                       {"scope", "root.a root.b.*"},
-                                       {"state", ?STATE}],
-                                      []),
-    {Result3, _Response3, Context3}  = authorization_code:process_get(Request3, 
-                                                                   ?CONTEXT),
-    {ok, StoredRequest3} = oauth2_ets_backend:retrieve_request(<<?REQUEST2_ID>>),
-    [?_assertEqual({halt, 200}, Result1),
-     ?_assertEqual(?CONTEXT, Context1),
-     ?_assertEqual(#oauth2_request{client_id = <<?CLIENT2_ID>>, 
-                                   redirect_uri = <<?CLIENT2_URI>>,
-                                   scope = undefined, state = undefined},
-                   StoredRequest1),
-     ?_assertEqual({halt, 200}, Result3),
-     ?_assertEqual(?CONTEXT, Context3),
-     ?_assertEqual(#oauth2_request{client_id = <<?CLIENT2_ID>>, 
-                                   redirect_uri = <<?CLIENT2_URI>>, 
-                                   scope = ?CLIENT2_SCOPE, 
-                                   state = <<?STATE>>}, StoredRequest3)
+successful_tests(_Context)->
+    Result1 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"scope", ?CLIENT1_SCOPE},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD},
+                                 {"state", ?STATE}]),
+    {LocationBaseURL, LocationParams} = 
+        test_util:split_url(test_util:result_location(Result1)),
+    [?_assertEqual(302, test_util:result_status(Result1)),
+     ?_assertEqual(?CLIENT1_URI, LocationBaseURL),
+     ?_assertEqual(2, length(LocationParams)),
+     ?_assertNotEqual(undefined, proplists:get_value("code", LocationParams)),
+     ?_assertEqual(?STATE, proplists:get_value("state", LocationParams))
     ].

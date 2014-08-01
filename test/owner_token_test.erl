@@ -1,18 +1,14 @@
 %% @author https://github.com/IvanMartinez
-%% @copyright 2013 author.
-%% @doc Tests owner_token.
-%% Distributed under the terms and conditions of the Apache 2.0 license.
+%% @doc Tests for authorization_token resource.
 
 -module(owner_token_test).
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(PATH, "/owner_token").
--define(STATE, whatever).
--define(USER1USERNAME, "User1").
--define(USER1PASSWORD, "Password1").
--define(USER1SCOPE, [<<"root.a.*">>, <<"root.x.y">>]).
--define(TOKENCODE, "TOKENCODE").
+-define(OWNER_TOKEN_URL, "http://127.0.0.1:8000/owner_token").
+-define(USER1_USERNAME, "User1").
+-define(USER1_PASSWORD, "Password1").
+-define(USER1_SCOPE, "root1.z root2.a").
 
 %% ===================================================================
 %% Setup functions
@@ -22,146 +18,99 @@ setup_test_() ->
     {setup, 
         fun before_tests/0,
         fun after_tests/1,
-        fun (Config) -> [invalid_request_tests(Config),
-                         unsupported_grant_type_tests(Config),
-                         invalid_grant_tests(Config),
+        fun (Config) -> [bad_request_tests(Config),
                          invalid_scope_tests(Config),
+                         access_denied_tests(Config),
                          successful_tests(Config)
                         ] end
     }.
 
 before_tests() ->
-    meck:new(oauth2_config),
-    meck:expect(oauth2_config, backend, fun() -> oauth2_ets_backend end),
-    meck:expect(oauth2_config, expiry_time, fun(_) -> 3600 end),
-    meck:expect(oauth2_config, token_generation, fun() -> oauth2_token end),
-    meck:new(oauth2_token),
-    meck:expect(oauth2_token, generate, fun(_) -> <<?TOKENCODE>> end),
-    oauth2_ets_backend:start(),
-    oauth2_ets_backend:add_resowner(<<?USER1USERNAME>>, <<?USER1PASSWORD>>,
-                                ?USER1SCOPE),
+    inets:start(),
     ok.
 
 after_tests(_Config) ->
-    oauth2_ets_backend:delete_resowner(?USER1USERNAME),
-    oauth2_ets_backend:stop(),
-    meck:unload(oauth2_token),
-    meck:unload(oauth2_config),
+    inets:stop(),
     ok.
 
 %% ===================================================================
 %% Tests
 %% ===================================================================
 
-invalid_request_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"username", ?USER1USERNAME},
-                                       {"password", ?USER1PASSWORD},
-                                       {"scope", "root.a.b"}], []),
-    {Result1, Response1, State1}  = owner_token:process_get(Request1, ?STATE),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"password", ?USER1PASSWORD},
-                                       {"scope", "root.x.y"}], []),
-    {Result2, Response2, State2}  = owner_token:process_get(Request2, ?STATE),
-    Request3 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", ?USER1USERNAME},
-                                       {"scope", "root.a.c"}], []),
-    {Result3, Response3, State3}  = owner_token:process_get(Request3, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_request\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1),
-     ?_assertEqual({halt, 400}, Result2),
-     ?_assertEqual(<<"{\"error\":\"invalid_request\"}">>, 
-                   wrq:resp_body(Response2)),
-     ?_assertEqual(?STATE, State2),
-     ?_assertEqual({halt, 400}, Result3),
-     ?_assertEqual(<<"{\"error\":\"invalid_request\"}">>, 
-                   wrq:resp_body(Response3)),
-     ?_assertEqual(?STATE, State3)
-    ].
-
-unsupported_grant_type_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "client_credentials"},
-                                       {"username", ?USER1USERNAME},
-                                       {"password", ?USER1PASSWORD},
-                                       {"scope", "scope1"}], []),
-    {Result1, Response1, State1}  = owner_token:process_get(Request1, ?STATE),
-    [?_assertEqual(Result1, {halt, 400}),
-     ?_assertEqual(<<"{\"error\":\"unsupported_grant_type\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(State1, ?STATE)
-    ].
-
-invalid_grant_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", ?USER1USERNAME},
-                                       {"password", "foo"}], []),
-    {Result1, Response1, State1}  = owner_token:process_get(Request1, ?STATE),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", "foo"},
-                                       {"password", ?USER1PASSWORD}], []),
-    {Result2, Response2, State2}  = owner_token:process_get(Request2, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_grant\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1),
-     ?_assertEqual({halt, 400}, Result2),
-     ?_assertEqual(<<"{\"error\":\"invalid_grant\"}">>,
-                   wrq:resp_body(Response2)),
-     ?_assertEqual(?STATE, State2)
+bad_request_tests(_Config)->
+    Result1 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "foo"},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result2 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result3 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "password"},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result4 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "password"},
+                                 {"username", ?USER1_USERNAME}]),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(400, test_util:result_status(Result2)),
+     ?_assertEqual(400, test_util:result_status(Result3)),
+     ?_assertEqual(400, test_util:result_status(Result4))
     ].
 
 invalid_scope_tests(_Config) ->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", ?USER1USERNAME},
-                                       {"password", ?USER1PASSWORD},
-                                       {"scope", "root.x.x"}], []),
-    {Result1, Response1, State1}  = owner_token:process_get(Request1, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_scope\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1)
+    Result1 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "password"},
+                                 {"scope", "foo"},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("invalid_scope", 
+                   proplists:get_value("error", BodyProplist1))
     ].
 
-successful_tests(_Config) ->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", ?USER1USERNAME},
-                                       {"password", ?USER1PASSWORD}], []),
-    {Result1, Response1, State1}  = owner_token:process_get(Request1, ?STATE),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", ?USER1USERNAME},
-                                       {"password", ?USER1PASSWORD},
-                                       {"scope", "root.a.a"}], []),
-    {Result2, Response2, State2}  = owner_token:process_get(Request2, ?STATE),
-    Request3 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "password"},
-                                       {"username", ?USER1USERNAME},
-                                       {"password", ?USER1PASSWORD},
-                                       {"scope", "root.a.b root.x.y"}], []),
-    {Result3, Response3, State3}  = owner_token:process_get(Request3, ?STATE),
-    [?_assertEqual({halt, 200}, Result1),
-     ?_assertEqual(<<"{\"access_token\":\"TOKENCODE\",",
-                    "\"token_type\":\"bearer\",\"expires_in\":3600,",
-                    "\"scope\":\"root.a.* root.x.y\"}">>, wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1),
-     ?_assertEqual({halt, 200}, Result2),
-     ?_assertEqual(<<"{\"access_token\":\"TOKENCODE\",",
-                    "\"token_type\":\"bearer\",\"expires_in\":3600,", 
-                    "\"scope\":\"root.a.a\"}">>, wrq:resp_body(Response2)),
-     ?_assertEqual(?STATE, State2),
-     ?_assertEqual({halt, 200}, Result3),
-     ?_assertEqual(<<"{\"access_token\":\"TOKENCODE\",",
-                     "\"token_type\":\"bearer\",\"expires_in\":3600,",
-                     "\"scope\":\"root.a.b root.x.y\"}">>, 
-                   wrq:resp_body(Response3)),
-     ?_assertEqual(?STATE, State3)
+access_denied_tests(_Config) ->
+    Result1 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "password"},
+                                 {"scope", ?USER1_SCOPE},
+                                 {"username", "foo"},
+                                 {"password", ?USER1_PASSWORD}]),
+    Result2 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "password"},
+                                 {"scope", ?USER1_SCOPE},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", "foo"}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    BodyProplist2 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result2)),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("access_denied", 
+                   proplists:get_value("error", BodyProplist1)),
+     ?_assertEqual(400, test_util:result_status(Result2)),
+     ?_assertEqual(1, length(BodyProplist2)),
+     ?_assertEqual("access_denied", 
+                   proplists:get_value("error", BodyProplist2))
+    ].
+
+successful_tests(_Config)->
+    Result1 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "password"},
+                                 {"scope", ?USER1_SCOPE},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    [?_assertEqual(200, test_util:result_status(Result1)),
+     ?_assertEqual(4, length(BodyProplist1)),
+     ?_assertNotEqual(undefined, proplists:get_value("access_token",
+                                                     BodyProplist1)),
+     ?_assertEqual("bearer", proplists:get_value("token_type",
+                                                 BodyProplist1)),
+     ?_assertEqual("3600", proplists:get_value("expires_in", BodyProplist1)),
+     ?_assertEqual(?USER1_SCOPE, proplists:get_value("scope", 
+                                                       BodyProplist1))
     ].

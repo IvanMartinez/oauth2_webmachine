@@ -16,30 +16,30 @@ Compile and execute with
 
 ## Testing
 
-Execute unit tests with 
-
-    $ rebar eunit skip_deps=true
-
 In order to make the tests below work, a sample client and resource owner must be created. Execute the following commands in the shell of the Erlang instance running the server:
 
     > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"http://client.uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
     > oauth2_ets_backend:add_resowner(<<"User1">>, <<"Password1">>, [<<"root1.z">>, <<"root2.*">>]).
 
-The tests use [curl](http://curl.haxx.se/) to send requests.
+With the server running, execute unit tests in another shell with
+
+    $ make test
+
+The tests below use [curl](http://curl.haxx.se/) to send requests.
 
 ### Authorization Code Grant
 
-Send a code request with
+Open the following URL in a browser
 
-    $ curl -v -X GET "http://127.0.0.1:8000/authorization_code?response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root.a.b+root.x.y&state=foo"
+    (http://127.0.0.1:8000/authorization_code?response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root1.z+root2.a&state=foo)
 
-The server responds with a HTML form for resource owner authentication. Notice the value of the request_id field
+Enter ```User1``` in user and ```Password1``` in password. Click Accept. The browser should be redirected to a URL that contains the authorization code in a parameter like
 
-    <input type="hidden" name="request_id" value="mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump">
+    http://client.uri/?code=Nnm8FdT3OJE3cBWCGBipCU1mjssjTuPo&state=foo
 
-Use that value to create and send a response to the form, like
+Alternatively, you can use curl to request a code with
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_code -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_code -d "response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root1.z+root2.a&state=foo&username=User1&password=Password1"
 
 The server responds with a HTTP 302 status, and the authorization code is in the Location field of the header
 
@@ -53,28 +53,25 @@ Another way of testing this flow is opening test/authorization_code_test.html wi
 
     http://client.uri?code=MWOqlwshyblAHm3AvNPFf2c96tAtZYsG&state=foo
 
+    http://127.0.0.1:8000/authorization_code?response_type=code&client_id=Client1&redirect_uri=http://client.uri&scope=root1.z+root2.a&state=foo"
+
 ### Implicit Grant
 
-Send a token request with
+Open the following URL in a browser
 
-    $ curl -v -X GET "http://127.0.0.1:8000/authorization_token?response_type=token&client_id=AnyClient&redirect_uri=http://anyclient.uri&scope=root1.z+root2.b&state=foo"
+    (http://127.0.0.1:8000/authorization_token?response_type=token&client_id=AnyClient&redirect_uri=http://anyclient.uri&scope=root1.z+root2.a&state=foo)
 
-The server responds with a HTML form for resource owner authentication. Notice the value of the request_id field
+Enter ```User1``` in user and ```Password1``` in password. Click Accept. The browser should be redirected to a URL that contains the authorization code in a parameter like
 
-    <input type="hidden" name="request_id" value="mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump">
+    http://anyclient.uri/?access_token=bHcbA5Q8OHlZyODcR4JwO7JOrD8bto2K&token_type=bearer&expires_in=3600&scope=root1.z root2.b&state=foo
 
-Use that value to create and send a response to the form, like
+Alternatively, you can use curl to request a token with
 
-    $ curl -v -X POST http://127.0.0.1:8000/authorization_token -d "request_id=mqWsdDvojGKTFegAiY5a9wH3RRjD0Ump&username=User1&password=Password1"
+    $ curl -v -X POST http://127.0.0.1:8000/authorization_token -d "response_type=token&client_id=AnyClient&redirect_uri=http://anyclient.uri&scope=root1.z+root2.b&state=foo&username=User1&password=Password1"
 
-The server responds with a HTTP 302 status, and the access token parameters are in the Location field of the header
+The server responds with a HTTP 302 status, and the access token is in the Location field of the header
 
     Location: http://anyclient.uri?access_token=bHcbA5Q8OHlZyODcR4JwO7JOrD8bto2K&token_type=bearer&expires_in=3600&scope=root1.z root2.b&state=foo
-
-Another way of testing this flow is opening test/implicit_grant_test.html with a browser. The first form will ask for the values of the fields of the first request, and from there the flow will be handled by the browser. If nobody is listening at the redirection URI the flow will end in a 404 Not Found error, but the access token parameters should be visible in the URI of the browser
-
-    http://anyclient.uri?access_token=67gPEezhJAjbeq0VvgoaURi8HkhGWlOx&token_type=bearer&expires_in=3600&scope=root1.z%20root2.b&state=foo
-
 
 ### Resource Owner Password Credentials Grant
 
@@ -96,7 +93,7 @@ If the Authorization Code Grant flow is performed succesfully, the response to t
 
 Obtain a new access token from the refresh token with 
 
-    $ curl -v -X POST http://127.0.0.1:8000/refresh_token -d "grant_type=refresh_token&client_id=Client1&client_secret=Secret1&refresh_token=EydKXViAHx7aAedoiGsKrrlBQneMpjpf&scope=root.a.b root.x.y"
+    $ curl -v -X POST http://127.0.0.1:8000/refresh_token -d "grant_type=refresh_token&client_id=Client1&client_secret=Secret1&refresh_token=EydKXViAHx7aAedoiGsKrrlBQneMpjpf&scope=root1.z+root2.a"
 
 ## OAuth 2 implementation
 
@@ -122,29 +119,32 @@ Scopes may be separated by "+" and/or "%20" characters. If the requested scope i
 For more information about scope validation, see https://github.com/kivra/oauth2 README.md file.
 
 4.1. Authorization Code Grant
+4.1.1 Authorization Request
+
+The redirect_uri parameter is required.
+
 4.1.2.1. Error Response
 
-The following errors may occur before the existence of a redirection URI is confirmed, so they are not forwarded to any URI. They are the direct response to the request.
+The following errors may occur before the redirection URI is verified, so they are not forwarded to any URI. They are the direct response to the request.
 
-- HTTP 400 Bad Request. If returned before the authentication form is presented, the request has no "client_id" parameter. If returned after the authentication form is presented, the form is missing a required field (request_id, username or password).
-- HTTP 401 Unauthorized. The value of the "client_id" parameter doesn't match the id of any registered client, or the value of the "redirect_uri" parameter doesn't match the registered redirection URI of the client.
-- HTTP 403 Forbidden. The value of the "client_id" parameter matches the id of a registered client, but this doesn't have a registered redirection URI. The validity of the redirection URI is not checked, this should be done during client registration.
-- HTTP 408 Request timeout. The server couldn't find stored data of the initial request. This is probably because the resource owner took too long to answer the authentication form.
+- HTTP 400 Bad Request: The request is missing some of the following parameters: response_type (or its value isn't "code"), client_id or redirection_uri. If it is a POST request, this error is also returned when username or password are missing. 
+- HTTP 403 Forbidden: The value of cliend_id or redirection_uri doesn't match a registered client.
 
 Any other error or successful response is forwarded to the registered redirection URI of the client with a HTTP 302 response, as explained in the specification.
 
+*Notice response_type errors are not forwarded to the redirection URI as required by the specification.*
+
 4.1.3. Access Token Request
 
-The redirect_uri parameter is always required, even if it wasn't included in authorization request.
+The redirect_uri parameter is required.
 
 5.2. Error Response
 
-- invalid_request: If the request has a repeated parameter, the value of the first occurrence will be taken without necessarily producing an error. Such is the behaviour of
-Webmachine's wrq:get_qs_value/2 function. Using more than one authenticating mechanism doesn't necessarily produce an error either, see point 2.3. above.
+- invalid_request: If the request has a repeated parameter, the value of the first occurrence will be taken without necessarily producing an error.
 
-- invalid_client: This error is returned in a HTTP 401 response, with authenticate realm "oauth2_webmachine". The realm is defined in "oauth2_wrq.erl" file.
+- invalid_client: This error is returned in a HTTP 401 Unauthoized response.
 
-- unsupported_grant_type: Since this implementation uses a different URL path for each grant type, issuing a wrong grant_type value for a certain path (i.e. http:/localhost:8000/client_token?grant_type=password) results in a unsupponted_grant_type error. In cases like this the error doesn't mean that the grant type isn't supported at all, only that it's being sent to the wrong URL.
+- unsupported_grant_type: Since this implementation uses a different URL path for each grant type, issuing a wrong grant_type value for a certain path (i.e. http:/localhost:8000/client_token?grant_type=password) results in a unsupported_grant_type error. In cases like this the error doesn't mean that the grant type isn't supported at all, only that it's being sent to the wrong URL.
 
 ## Feedback
 

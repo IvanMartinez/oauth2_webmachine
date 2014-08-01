@@ -7,23 +7,34 @@
 
 -behaviour(oauth2_backend).
 
-
--include("include/oauth2_request.hrl").
-
 %%% API
--export([start/0, stop/0, add_resowner/2, add_resowner/3, delete_resowner/1, 
-         add_client/4, delete_client/1, retrieve_request/1, store_request/4
+-export([add_client/4,
+         add_resowner/2, 
+         add_resowner/3, 
+         delete_client/1, 
+         delete_resowner/1,
+         create/0, 
+         delete/0 
         ]).
 
 %%% OAuth2 backend functionality
--export([authenticate_username_password/3, authenticate_client/3, 
-         associate_access_code/3, associate_access_token/3,
-         associate_refresh_token/3, resolve_access_code/2, 
-         resolve_access_token/2, resolve_refresh_token/2, 
-         revoke_access_code/2, revoke_access_token/2, revoke_refresh_token/2, 
-         get_client_identity/2, get_redirection_uri/2,  
-         verify_redirection_uri/3, verify_client_scope/3,
-         verify_resowner_scope/3, verify_scope/3
+-export([authenticate_username_password/3, 
+         authenticate_client/3, 
+         associate_access_code/3, 
+         associate_access_token/3,
+         associate_refresh_token/3, 
+         resolve_access_code/2, 
+         resolve_access_token/2, 
+         resolve_refresh_token/2, 
+         revoke_access_code/2, 
+         revoke_access_token/2, 
+         revoke_refresh_token/2, 
+         get_client_identity/2, 
+         get_redirection_uri/2,  
+         verify_redirection_uri/3, 
+         verify_client_scope/3,
+         verify_resowner_scope/3, 
+         verify_scope/3
         ]).
 
 -define(ACCESS_CODE_TABLE, access_codes).
@@ -47,50 +58,23 @@
           scope         :: [binary()]
          }).
 
+-type client() :: #client{}.
+
 -record(resowner, {
           username  :: binary(),
           password  :: binary(),
-          scope     :: [binary()]
+          scope     :: scope()
          }).
+
+-type grantctx() :: oauth2:context().
+-type appctx()   :: oauth2:appctx().
+-type token()    :: oauth2:token().
+-type scope()    :: oauth2:scope().
+
 
 %%%===================================================================
 %%% API
 %%%===================================================================
-
--spec start() -> ok.
-start() ->
-    lists:foreach(fun(Table) ->
-                          ets:new(Table, [named_table, public])
-                  end,
-                  ?TABLES),
-    ok.
-
--spec stop() -> ok.
-stop() ->
-    lists:foreach(fun ets:delete/1, ?TABLES),
-    ok.
-
--spec add_resowner(Username, Password, Scope) -> ok when
-    Username  :: binary(),
-    Password  :: binary(),
-    Scope     :: [binary()].
-add_resowner(Username, Password, Scope) ->
-    put(?USER_TABLE, Username, #resowner{username = Username, 
-                                         password = Password, scope = Scope}),
-    ok.
-
--spec add_resowner(Username, Password) -> ok when
-    Username :: binary(),
-    Password :: binary().
-add_resowner(Username, Password) ->
-    add_resowner(Username, Password, []),
-    ok.
-
--spec delete_resowner(Username) -> ok when
-    Username :: binary().
-delete_resowner(Username) ->
-    delete(?USER_TABLE, Username),
-    ok.
 
 -spec add_client(Id, Secret, RedirectURI, Scope) -> ok when
     Id          :: binary(),
@@ -105,109 +89,112 @@ add_client(Id, Secret, RedirectURI, Scope) ->
                                   }),
     ok.
 
+-spec add_resowner(Username, Password) -> ok when
+    Username :: binary(),
+    Password :: binary().
+add_resowner(Username, Password) ->
+    add_resowner(Username, Password, []),
+    ok.
+
+-spec add_resowner(Username, Password, Scope) -> ok when
+    Username  :: binary(),
+    Password  :: binary(),
+    Scope     :: [binary()].
+add_resowner(Username, Password, Scope) ->
+    put(?USER_TABLE, Username, #resowner{username = Username, 
+                                         password = Password, scope = Scope}),
+    ok.
+
+
+-spec create() -> ok.
+create() ->
+    lists:foreach(fun(Table) ->
+                          ets:new(Table, [named_table, public])
+                  end,
+                  ?TABLES),
+    ok.
+
+-spec delete() -> ok.
+delete() ->
+    lists:foreach(fun ets:delete/1, ?TABLES),
+    ok.
+
+-spec delete_resowner(Username) -> ok when
+    Username :: binary().
+delete_resowner(Username) ->
+    delete(?USER_TABLE, Username),
+    ok.
+
 -spec delete_client(Id) -> ok when
     Id :: binary().
 delete_client(Id) ->
     delete(?CLIENT_TABLE, Id),
     ok.
 
--spec store_request(ClientId, RedirectURI, Scope, State) -> oauth2:token() when
-    ClientId    :: binary(),
-    RedirectURI :: binary(),
-    Scope       :: [binary()] | undefined,
-    State       :: binary() | undefined.
-store_request(ClientId, RedirectURI, Scope, State) ->
-    RequestId = new_request_id(),
-    put(?REQUEST_TABLE, RequestId, #oauth2_request{client_id = ClientId, 
-                                                   redirect_uri = RedirectURI,
-                                                   scope = Scope,
-                                                   state = State}),
-    RequestId.
-
--spec retrieve_request(RequestId) -> {ok, Request} | {error, notfound} when
-    RequestId   :: oauth2:token(),
-    Request     :: oauth2_request().
-retrieve_request(RequestId) ->
-    case get(?REQUEST_TABLE, RequestId) of
-        {ok, Request} ->
-            {ok, Request};
-        {error, notfound} ->
-            {error, notfound}
-    end.
-
 %%%===================================================================
 %%% OAuth2 backend functions
 %%%===================================================================
 
-authenticate_username_password(Username, Password, _AppContext) ->
+authenticate_username_password(Username, Password, AppContext) ->
     case get(?USER_TABLE, Username) of
         {ok, #resowner{password = Password} = Identity} ->
-            {ok, Identity};
+            {ok, {AppContext, Identity}};
         {ok, #resowner{password = _WrongPassword}} ->
             {error, badpass};
         _ ->
             {error, notfound}
     end.
 
-authenticate_client(ClientId, ClientSecret, _AppContext) ->
+authenticate_client(ClientId, ClientSecret, AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, #client{client_secret = ClientSecret} = Identity} ->
-            {ok, Identity};
+            {ok, {AppContext, Identity}};
         {ok, #client{client_secret = _WrongSecret}} ->
             {error, badsecret};
         _ ->
             {error, notfound}
     end.
 
-associate_access_code(AccessCode, Context, _AppContext) ->
+associate_access_code(AccessCode, Context, AppContext) ->
     put(?ACCESS_CODE_TABLE, AccessCode, Context),
-    ok.
+    {ok, AppContext}.
 
-associate_access_token(AccessToken, Context, _AppContext) ->
+associate_access_token(AccessToken, Context, AppContext) ->
     put(?ACCESS_TOKEN_TABLE, AccessToken, Context),
-    ok.
+    {ok, AppContext}.
 
-associate_refresh_token(RefreshToken, Context, _AppContext) ->
+associate_refresh_token(RefreshToken, Context, AppContext) ->
     put(?REFRESH_TOKEN_TABLE, RefreshToken, Context),
-    ok.
+    {ok, AppContext}.
 
-resolve_access_code(AccessCode, _AppContext) ->
-    %% The case trickery is just here to make sure that
-    %% we don't propagate errors that cannot be legally
-    %% returned from this function according to the spec.
+resolve_access_code(AccessCode, AppContext) ->
     case get(?ACCESS_CODE_TABLE, AccessCode) of
-        Value = {ok, _} ->
-            Value;
+        {ok, Grant} ->
+            {ok, {AppContext, Grant}};
         Error = {error, notfound} ->
             Error
     end.
 
-resolve_access_token(AccessToken, _AppContext) ->
-    %% The case trickery is just here to make sure that
-    %% we don't propagate errors that cannot be legally
-    %% returned from this function according to the spec.
+resolve_access_token(AccessToken, AppContext) ->
     case get(?ACCESS_TOKEN_TABLE, AccessToken) of
-        Value = {ok, _} ->
-            Value;
+        {ok, Grant} ->
+            {ok, {AppContext, Grant}};
         Error = {error, notfound} ->
             Error
     end.
 
-resolve_refresh_token(RefreshToken, _AppContext) ->
-    %% The case trickery is just here to make sure that
-    %% we don't propagate errors that cannot be legally
-    %% returned from this function according to the spec.
+resolve_refresh_token(RefreshToken, AppContext) ->
     case get(?REFRESH_TOKEN_TABLE, RefreshToken) of
-        Value = {ok, _} ->
-            Value;
+        {ok, Grant} ->
+            {ok, {AppContext, Grant}};
         Error = {error, notfound} ->
             Error
     end.
 
 %% @doc Revokes an access code AccessCode, so that it cannot be used again.
-revoke_access_code(AccessCode, _AppContext) ->
+revoke_access_code(AccessCode, AppContext) ->
     delete(?ACCESS_CODE_TABLE, AccessCode),
-    ok.
+    {ok, AppContext}.
 
 %% Not implemented yet.
 revoke_access_token(_AccessToken, _AppContext) ->
@@ -217,34 +204,34 @@ revoke_access_token(_AccessToken, _AppContext) ->
 revoke_refresh_token(_RefreshToken, _AppContext) ->
     {error, notfound}.
 
-get_redirection_uri(ClientId, _AppContext) ->
+get_redirection_uri(ClientId, AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, #client{redirect_uri = RedirectUri}} ->
-            {ok, RedirectUri};
-        Error = {error, notfound} ->
-            Error
+            {ok, {AppContext, RedirectUri}};
+        {error, notfound} ->
+            {error, notfound}
     end.
 
-get_client_identity(ClientId, _AppContext) ->
+get_client_identity(ClientId, AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, Identity} ->
-            {ok, Identity};
-        Error = {error, notfound} ->
-            Error
+            {ok, {AppContext, Identity}};
+        {error, notfound} ->
+            {error, notfound}
     end.
 
 verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, undefined,
-                       _AppContext) ->
-    ok;
+                       AppContext) ->
+    {ok, AppContext};
 verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, <<>>,
-                       _AppContext) ->
-    ok;
+                       AppContext) ->
+    {ok, AppContext};
 verify_redirection_uri(#client{redirect_uri = <<>>}, _Uri,
                        _AppContext) ->
     {error, baduri};
 verify_redirection_uri(#client{redirect_uri = RegisteredUri}, RegisteredUri,
-                       _AppContext) ->
-    ok;
+                       AppContext) ->
+    {ok, AppContext};
 verify_redirection_uri(#client{redirect_uri = _RegisteredUri}, _DifferentUri,
                        _AppContext) ->
     {error, baduri}.
@@ -255,17 +242,17 @@ verify_client_scope(#client{scope = RegisteredScope}, Scope, AppContext) ->
 verify_resowner_scope(#resowner{scope = RegisteredScope}, Scope, AppContext) ->
     verify_scope(RegisteredScope, Scope, AppContext).
 
-verify_scope(RegisteredScope, undefined, _AppContext) ->
-    {ok, RegisteredScope};
-verify_scope(_RegisteredScope, [], _AppContext) ->
-    {ok, []};
+verify_scope(RegisteredScope, undefined, AppContext) ->
+    {ok, {AppContext, RegisteredScope}};
+verify_scope(_RegisteredScope, [], AppContext) ->
+    {ok, {AppContext, []}};
 verify_scope([], _Scope, _AppContext) ->
     {error, invalid_scope};
-verify_scope(RegisteredScope, Scope, _AppContext) ->
+verify_scope(RegisteredScope, Scope, AppContext) ->
     case oauth2_priv_set:is_subset(oauth2_priv_set:new(Scope), 
                                    oauth2_priv_set:new(RegisteredScope)) of
         true ->
-            {ok, Scope};
+            {ok, {AppContext, Scope}};
         false ->
             {error, badscope}
     end.
@@ -287,13 +274,3 @@ put(Table, Key, Value) ->
 
 delete(Table, Key) ->
     ets:delete(Table, Key).
-
-new_request_id() ->
-    RequestId = oauth2_token:generate([]),
-    case get(?REQUEST_TABLE, RequestId) of
-        {ok, _} ->
-            new_request_id();
-        {error, _} ->
-            RequestId
-    end.
-     

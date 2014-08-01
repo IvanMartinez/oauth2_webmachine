@@ -13,11 +13,12 @@
 %% @spec start(_Type, _StartArgs) -> ServerRet
 %% @doc application start callback for oauth2_webmachine.
 start(_Type, _StartArgs) ->
-    oauth2_ets_backend:start(),
+    %% The ETS tables must be created here, in the main thread of the 
+    %% application.
+    oauth2_ets_backend:create(),
     oauth2_webmachine_sup:start_link().
 
 %% @spec stop(_State) -> ServerRet
 %% @doc application stop callback for oauth2_webmachine.
 stop(_State) ->
-    oauth2_ets_backend:stop(),
     ok.

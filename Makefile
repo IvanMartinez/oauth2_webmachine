@@ -1,7 +1,7 @@
 ERL ?= erl
 APP := oauth2_webmachine
 
-.PHONY: deps
+.PHONY: deps test
 
 all: deps
 	@./rebar compile
@@ -17,3 +17,6 @@ distclean: clean
 
 docs:
 	@erl -noshell -run edoc_run application '$(APP)' '"."' '[]'
+
+test:
+	./rebar skip_deps=true eunit

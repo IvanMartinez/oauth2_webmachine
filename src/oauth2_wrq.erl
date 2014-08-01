@@ -14,7 +14,9 @@
 
 -export([parse_body/1, get_client_credentials/2, get_client_id/1, get_code/1,
          get_grant_type/1, get_refresh_token/1, get_response_type/1, 
-         get_owner_credentials/1, get_redirect_uri/1, get_scope/1, get_state/1,
+         get_owner_credentials/1, get_redirect_uri/1, get_scope/1,
+         get_scope_binary/1, 
+         get_state/1,
          get_request_id/1]).
 -export([access_token_response/6, access_refresh_token_response/7,
          json_error_response/3, html_response/4,
@@ -34,7 +36,7 @@ parse_body(Request) ->
             mochiweb_util:parse_qs(Body)
     end.
 
--spec get_client_credentials(Params     :: list(string()), 
+-spec get_client_credentials(Params     :: proplists:proplist(), 
                              Request    :: #wm_reqdata{}) ->
           {binary(), binary()} | undefined.
 get_client_credentials(Params, #wm_reqdata{} = Request) ->
@@ -42,157 +44,159 @@ get_client_credentials(Params, #wm_reqdata{} = Request) ->
         "Basic " ++ B64String ->
             b64_credentials(B64String);
         undefined ->
-            case lists:keyfind("client_id", 1, Params) of
-                {"client_id", Id} ->
-                    case lists:keyfind("client_secret", 1, Params) of
-                        {"client_secret", Secret} ->
-                            {list_to_binary(Id), list_to_binary(Secret)};
-                        false ->
-                            undefined
-                        end;
-                false ->
-                    undefined
+            case {proplists:get_value("client_id", Params),
+                  proplists:get_value("client_secret", Params)} of
+                {undefined, _} -> undefined;
+                {_, undefined} -> undefined;
+                {Id, Secret} ->
+                    {list_to_binary(Id), list_to_binary(Secret)}
             end;
         _ ->
             undefined
     end.
 
--spec get_client_id(Params :: list(string())) ->
+-spec get_client_id(Params :: proplists:proplist()) ->
           binary() | undefined.
-get_client_id([]) ->
-    undefined;
 get_client_id(Params) ->
-    case lists:keyfind("client_id", 1, Params) of
-        {"client_id", Id} ->
-            list_to_binary(Id);
-        false ->
-            undefined
+    case proplists:get_value("client_id", Params) of
+        undefined ->
+            undefined;
+        Id ->
+            list_to_binary(Id)
     end.
 
--spec get_code(Params :: list(string())) ->
+-spec get_code(Params :: proplists:proplist()) ->
           binary() | undefined.
 get_code([]) ->
     undefined;
 get_code(Params) ->
-    case lists:keyfind("code", 1, Params) of
-        {"code", Code} ->
-            list_to_binary(Code);
-        false ->
-            undefined
+    case proplists:get_value("code", Params) of
+        undefined ->
+            undefined;
+        Code ->
+            list_to_binary(Code)
     end.
 
--spec get_grant_type(Params :: list(string())) ->
+-spec get_grant_type(Params :: proplists:proplist()) ->
           authorization_code | client_credentials | password | refresh_token |
               undefined | unsupported.
 get_grant_type([]) ->
     undefined;
 get_grant_type(Params) ->
-    case lists:keyfind("grant_type", 1, Params) of
-        {"grant_type", "authorization_code"} ->
+    case proplists:get_value("grant_type", Params) of
+        undefined ->
+            undefined;
+        "authorization_code" ->
             authorization_code;
-        {"grant_type", "client_credentials"} ->
+        "client_credentials" ->
             client_credentials;
-        {"grant_type", "password"} ->
+        "password" ->
             password;
-        {"grant_type", "refresh_token"} ->
+        "refresh_token" ->
             refresh_token;
-        {"grant_type", _} ->
-            unsupported;
-        false ->
-            undefined
+        _ ->
+            unsupported
     end.
 
--spec get_refresh_token(Params :: list(string())) ->
+-spec get_refresh_token(Params :: proplists:proplist()) ->
           binary() | undefined.
 get_refresh_token([]) ->
     undefined;
 get_refresh_token(Params) ->
-    case lists:keyfind("refresh_token", 1, Params) of
-        {"refresh_token", Token} ->
-            list_to_binary(Token);
-        false ->
-            undefined
+    case proplists:get_value("refresh_token", Params) of
+        undefined ->
+            undefined;
+        Token ->
+            list_to_binary(Token)
     end.
 
--spec get_response_type(Params :: list(string())) ->
+-spec get_response_type(Params :: proplists:proplist()) ->
           code | token | undefined | unsupported.
-get_response_type([]) ->
-    undefined;
 get_response_type(Params) ->
-    case lists:keyfind("response_type", 1, Params) of
-        {"response_type", "code"} ->
+    case proplists:get_value("response_type", Params) of
+        "code" ->
             code;
-        {"response_type", "token"} ->
+        "token" ->
             token;
-        {"response_type", _} ->
-            unsupported;
-        false ->
-            undefined
+        undefined ->
+            undefined;
+        _ ->
+            unsupported
     end.
 
--spec get_owner_credentials(Params :: list(string())) ->
+-spec get_owner_credentials(Params :: proplists:proplist()) ->
           {binary(), binary()} | undefined.
 get_owner_credentials(Params) ->
-    case lists:keyfind("username", 1, Params) of
-        {"username", Name} ->
-            case lists:keyfind("password", 1, Params) of
-                {"password", Password} ->
-                    {list_to_binary(Name), list_to_binary(Password)};
-                false ->
-                    undefined
-                end;
-        false ->
-            undefined
+    case proplists:get_value("username", Params) of
+        undefined ->
+            undefined;
+        Username ->
+            case proplists:get_value("password", Params) of
+                undefined ->
+                    undefined;
+                Password ->
+                    {list_to_binary(Username), list_to_binary(Password)}
+            end
     end.
 
--spec get_redirect_uri(Params :: list(string())) ->
+-spec get_redirect_uri(Params :: proplists:proplist()) ->
           binary() | undefined.
-get_redirect_uri([]) ->
-    undefined;
 get_redirect_uri(Params) ->
-    case lists:keyfind("redirect_uri", 1, Params) of
-        {"redirect_uri", Uri} ->
-            list_to_binary(Uri);
-        false ->
-            undefined
+    case proplists:get_value("redirect_uri", Params) of
+        undefined ->
+            undefined;
+        Uri ->
+            list_to_binary(Uri)
     end.
 
--spec get_scope(Params :: list(string())) ->
-          [binary()] | [] | undefined.
+-spec get_scope(Params :: proplists:proplist()) ->
+          oauth2:scope() | undefined.
 get_scope([]) ->
     undefined;
 get_scope(Params) ->
-    case lists:keyfind("scope", 1, Params) of
-        {"scope", ""} ->
+    case proplists:get_value("scope", Params) of
+        undefined ->
+            undefined;
+        "" ->
             [];
-        {"scope", ScopeString} ->
-            [list_to_binary(X) || X <- string:tokens(ScopeString, " ")];
-        false ->
-            undefined
+        ScopeString ->
+            [list_to_binary(X) || X <- string:tokens(ScopeString, " ")]
     end.
 
--spec get_state(Params :: list(string())) ->
+-spec get_scope_binary(Params :: proplists:proplist()) ->
+          binary() | undefined.
+get_scope_binary([]) ->
+    undefined;
+get_scope_binary(Params) ->
+    case proplists:get_value("scope", Params) of
+        undefined ->
+            undefined;
+        ScopeString ->
+            list_to_binary(ScopeString)
+    end.
+
+-spec get_state(Params :: proplists:proplist()) ->
           binary() | undefined.
 get_state([]) ->
     undefined;
 get_state(Params) ->
-    case lists:keyfind("state", 1, Params) of
-        {"state", State} ->
-            list_to_binary(State);
-        false ->
-            undefined
+    case proplists:get_value("state", Params) of
+        undefined ->
+            undefined;
+        State ->
+            list_to_binary(State)
     end.
 
--spec get_request_id(Params :: list(string())) ->
+-spec get_request_id(Params :: proplists:proplist()) ->
           binary() | undefined.
 get_request_id([]) ->
     undefined;
 get_request_id(Params) ->
-    case lists:keyfind("request_id", 1, Params) of
-        {"request_id", Id} ->
-            list_to_binary(Id);
-        false ->
-            undefined
+    case proplists:get_value("request_id", Params) of
+        undefined ->
+            undefined;
+        Id ->
+            list_to_binary(Id)
     end.
 
 -spec access_token_response(Request     :: #wm_reqdata{},
@@ -239,32 +243,27 @@ access_refresh_token_response(#wm_reqdata{} = Request, AccessToken, Type,
 
 -spec json_error_response(Request   :: #wm_reqdata{},
                           Error     :: invalid_client | invalid_grant | 
-                              invalid_request | invalid_scope | 
-                              unsupported_grant_type | 
+                              invalid_request | invalid_scope |
+                              unauthorized_client | unsupported_grant_type | 
                               unsupported_response_type,
                           Context   :: term()) ->
-          {{halt, 400 | 401}, #wm_reqdata{}, term()}.
+          {{halt, 400 | 403}, #wm_reqdata{}, term()}.
 json_error_response(Request, Error, Context) ->
+    JSONResponse = wrq:set_resp_header("Content-Type", "application/json",
+                                       Request),
     case Error of
         invalid_client ->
-            Response = wrq:set_resp_header("WWW-Authenticate", 
-                                           "Basic realm=\"" ++ 
-                                               ?AUTHENTICATE_REALM ++ "\"", 
-                                           Request),
+            Response = wrq:set_resp_header("WWW-Authenticate", "Basic", 
+                                           JSONResponse),
             {{halt, 401}, wrq:set_resp_body("{\"error\":\"invalid_client\"}", 
                                             Response), Context};
-        invalid_grant ->
-            {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_grant\"}",
-                                            Request), Context};
-        invalid_request ->
-            {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_request\"}", 
-                                            Request), Context};
-        invalid_scope ->
-            {{halt, 400}, wrq:set_resp_body("{\"error\":\"invalid_scope\"}", 
-                                            Request), Context};
-        unsupported_grant_type ->
+        unauthorized_client ->
+            {{halt, 403}, wrq:set_resp_body(
+               "{\"error\":\"unauthorized_client\"}", JSONResponse), Context};
+        Other ->
             {{halt, 400}, wrq:set_resp_body(
-               "{\"error\":\"unsupported_grant_type\"}", Request), Context}
+               lists:flatten(io_lib:format("{\"error\":\"~p\"}", [Other])),
+               JSONResponse), Context}
     end.
 
 -spec html_response(ReqData     :: #wm_reqdata{},

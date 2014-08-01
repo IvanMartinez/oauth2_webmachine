@@ -4,10 +4,17 @@
 %% Distributed under the terms and conditions of the Apache 2.0 license.
 
 -module(owner_token).
--export([init/1, allowed_methods/2, content_types_provided/2, to_json/2, 
+-export([init/1, 
+         allowed_methods/2,
+         malformed_request/2,
          process_post/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
+
+-record(request, {username          :: binary(),
+                  password          :: binary(),
+                  scope = undefined :: oauth2:scope() | undefined
+                 }).
 
 %% ====================================================================
 %% API functions
@@ -16,58 +23,40 @@
 init([]) -> {ok, undefined}.
 
 allowed_methods(ReqData, Context) ->
-    {['GET', 'POST'], ReqData, Context}.
+    {['POST', 'HEAD'], ReqData, Context}.
 
-content_types_provided(ReqData, Context) ->
-    {[{"application/json;charset=UTF-8", to_json}], ReqData, Context}.
-
-to_json(ReqData, Context) ->
-    process(ReqData, wrq:req_qs(ReqData), Context).
+malformed_request(ReqData, Context) ->
+    Params = oauth2_wrq:parse_body(ReqData),
+    GrantType = oauth2_wrq:get_grant_type(Params),
+    OwnerCredentials = oauth2_wrq:get_owner_credentials(Params), 
+    if
+        GrantType /= password ->
+            {true, ReqData, Context};
+        OwnerCredentials == undefined ->
+            {true, ReqData, Context};
+        true ->
+            Scope = oauth2_wrq:get_scope(Params),
+            {Username, Password} = OwnerCredentials,
+            {false, ReqData, [{request, #request{username = Username,
+                                                 password = Password,
+                                                 scope = Scope}} |
+                                Context]}
+    end.
 
 process_post(ReqData, Context) ->
-    process(ReqData, oauth2_wrq:parse_body(ReqData), Context).
-
-%% ====================================================================
-%% Internal functions
-%% ====================================================================
-
-process(ReqData, Params, Context) ->
-    case oauth2_wrq:get_grant_type(Params) of
-        password ->
-            case oauth2_wrq:get_owner_credentials(Params) of
-                undefined ->
-                    oauth2_wrq:json_error_response(ReqData, invalid_request,
-                                                   Context);
-                {Username, Password} ->
-                    case oauth2:authorize_password(Username, Password, 
-                                                   oauth2_wrq:get_scope(Params),
-                                                   none)
-                        of
-                        {ok, Authorization} ->
-                            Response = oauth2:issue_token_and_refresh(
-                                         Authorization, none),
-                            {ok, Token} = 
-                                oauth2_response:access_token(Response),
-                            {ok, Type} = oauth2_response:token_type(Response),
-                            {ok, Expires} = 
-                                oauth2_response:expires_in(Response),
-                            {ok, Scope} = oauth2_response:scope(Response),
-                            oauth2_wrq:access_token_response(ReqData, Token,
-                                                             Type, Expires,
-                                                             Scope, Context);
-                        {error, invalid_scope} ->
-                            oauth2_wrq:json_error_response(ReqData, 
-                                                           invalid_scope, 
-                                                           Context);
-                        {error, _Reason} ->
-                            oauth2_wrq:json_error_response(ReqData, 
-                                                           invalid_grant, 
-                                                           Context)
-                    end
-            end;
-        undefined ->
-            oauth2_wrq:json_error_response(ReqData, invalid_request, Context);
-        _ ->
-            oauth2_wrq:json_error_response(ReqData, unsupported_grant_type,
-                                           Context)
+    #request{username = Username,
+             password = Password,
+             scope = Scope} = proplists:get_value(request, Context),
+    case oauth2:authorize_password(Username, Password, Scope, none) of
+        {ok, {_AppContext, Authorization}} ->
+            {ok, {_AppContext, Response}} = 
+                oauth2:issue_token(Authorization, none),
+            {ok, AccessToken} = oauth2_response:access_token(Response),
+            {ok, Type} = oauth2_response:token_type(Response),
+            {ok, Expires} = oauth2_response:expires_in(Response),
+            {ok, VerifiedScope} = oauth2_response:scope(Response),
+            oauth2_wrq:access_token_response(ReqData, AccessToken, Type,
+                                             Expires, VerifiedScope, Context);
+        {error, Error} ->
+            oauth2_wrq:json_error_response(ReqData, Error, Context)
     end.

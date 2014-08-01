@@ -1,24 +1,24 @@
 %% @author https://github.com/IvanMartinez
-%% @doc @todo Add description to register_processor_tests.
+%% @doc Tests for refresh_token resource.
+%% @todo Add tests for timed-out grants.
 
 -module(refresh_token_test).
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(PATH, "/refresh_token").
--define(STATE, whatever).
--define(CLIENT1_ID, "Id1").
+-define(AUTHORIZATION_CODE_URL, "http://127.0.0.1:8000/authorization_code").
+-define(ACCESS_TOKEN_URL, "http://127.0.0.1:8000/access_token").
+-define(REFRESH_TOKEN_URL, "http://127.0.0.1:8000/refresh_token").
+-define(PATH, "/access_token").
+-define(STATE, "State").
+-define(CLIENT1_ID, "Client1").
 -define(CLIENT1_SECRET, "Secret1").
--define(CLIENT1_URI, "Uri1").
--define(CLIENT1_SCOPE, [<<"root.a">>, <<"root.b.*">>]).
+-define(CLIENT1_URI, "http://client.uri").
+-define(CLIENT1_SCOPE, "root1.z root2.a").
 -define(USER1_USERNAME, "User1").
 -define(USER1_PASSWORD, "Password1").
--define(REFRESH_TOKEN, "REFRESHTOKEN").
--define(TOKEN_CODE, "TOKENCODE").
 -define(BASIC_CREDENTIALS(ID, SECRET), "Basic " ++ 
             base64:encode_to_string(ID ++ ":" ++ SECRET)).
--define(AUTHENTICATE_REALM, "oauth2_webmachine").
--define(EXPIRY_ABSOLUTE, 1000).
 
 %% ===================================================================
 %% Setup functions
@@ -28,236 +28,196 @@ setup_test_() ->
     {setup, 
         fun before_tests/0,
         fun after_tests/1,
-        fun (Config) -> [invalid_request_tests(Config),
-                         unsupported_grant_type_tests(Config),
-                         invalid_client_tests(Config),
-                         invalid_grant_tests(Config),
-                         invalid_scope_tests(Config),
-                         successful_tests(Config)
-                        ] end
+        fun (Context) -> [bad_request_tests(Context),
+                          unauthorized_tests(Context),
+                          invalid_client_tests(Context),
+                          invalid_grant_tests(Context),
+                          successful_tests(Context)
+                         ]
+        end
     }.
 
 before_tests() ->
-    meck:new(oauth2_config),
-    meck:expect(oauth2_config, backend, fun() -> oauth2_ets_backend end),
-    meck:expect(oauth2_config, expiry_time, fun(_) -> 3600 end),
-    meck:expect(oauth2_config, token_generation, fun() -> oauth2_token end),
-    meck:new(oauth2_token),
-    meck:expect(oauth2_token, generate, fun(_) -> <<?REFRESH_TOKEN>> end),
-    oauth2_ets_backend:start(),
-    oauth2_ets_backend:add_client(<<?CLIENT1_ID>>, <<?CLIENT1_SECRET>>, 
-                                  <<?CLIENT1_URI>>, ?CLIENT1_SCOPE),
-    oauth2_ets_backend:add_resowner(<<?USER1_USERNAME>>, <<?USER1_PASSWORD>>),
-    meck:expect(oauth2_token, generate, fun(_) -> <<?REFRESH_TOKEN>> end),
-    {ok, Authorization1} = oauth2:authorize_code_request(<<?CLIENT1_ID>>,
-                                                         <<?CLIENT1_URI>>,
-                                                         <<?USER1_USERNAME>>,
-                                                         <<?USER1_PASSWORD>>,
-                                                         ?CLIENT1_SCOPE,
-                                                         none),
-    oauth2:issue_token_and_refresh(Authorization1, none),
-    meck:expect(oauth2_token, generate, fun(_) -> <<?TOKEN_CODE>> end),
-    ok.
+    inets:start(),
+    CodeResult1 = test_util:request(?AUTHORIZATION_CODE_URL, post,
+                                    [{"response_type", "code"},
+                                     {"client_id", ?CLIENT1_ID},
+                                     {"redirect_uri", ?CLIENT1_URI},
+                                     {"scope", ?CLIENT1_SCOPE},
+                                     {"username", ?USER1_USERNAME},
+                                     {"password", ?USER1_PASSWORD}]),
+    CodeResult2 = test_util:request(?AUTHORIZATION_CODE_URL, post,
+                                    [{"response_type", "code"},
+                                     {"client_id", ?CLIENT1_ID},
+                                     {"redirect_uri", ?CLIENT1_URI},
+                                     {"scope", ?CLIENT1_SCOPE},
+                                     {"username", ?USER1_USERNAME},
+                                     {"password", ?USER1_PASSWORD}]),
+    {_, LocationParams1} = test_util:split_url(test_util:result_location(
+                                                 CodeResult1)),
+    {_, LocationParams2} = test_util:split_url(test_util:result_location(
+                                                 CodeResult2)),
+    Code1 = proplists:get_value("code", LocationParams1),
+    Code2 = proplists:get_value("code", LocationParams2),
+    TokenResult1 = test_util:request(?ACCESS_TOKEN_URL, post,
+                                     [{"grant_type", "authorization_code"},
+                                      {"code", Code1},
+                                      {"redirect_uri", ?CLIENT1_URI},
+                                      {"client_id", ?CLIENT1_ID},
+                                      {"client_secret", ?CLIENT1_SECRET}]),
+    TokenResult2 = test_util:request(?ACCESS_TOKEN_URL, post,
+                                     [{"Authorization",
+                                       ?BASIC_CREDENTIALS(?CLIENT1_ID,
+                                                          ?CLIENT1_SECRET)}],
+                                     [{"grant_type", "authorization_code"},
+                                      {"code", Code2},
+                                      {"redirect_uri", ?CLIENT1_URI}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        TokenResult1)),
+    BodyProplist2 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        TokenResult2)),
+    {proplists:get_value("refresh_token", BodyProplist1),
+     proplists:get_value("refresh_token", BodyProplist2)}.
 
-after_tests(_Config) ->
-    oauth2_ets_backend:delete_resowner(?USER1_USERNAME),
-    oauth2_ets_backend:delete_client(?CLIENT1_ID),
-    oauth2_ets_backend:stop(),
-    meck:unload(oauth2_token),
-    meck:unload(oauth2_config),
+after_tests(_Context) ->
+    inets:stop(),
     ok.
 
 %% ===================================================================
 %% Tests
 %% ===================================================================
 
-invalid_request_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"refresh_token", ?REFRESH_TOKEN}],
-                                      [{"Authorization", 
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)}]),
-    {Result1, Response1, State1}  = refresh_token:process_get(Request1, ?STATE),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"}],
-                                      [{"Authorization", 
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)}]),
-    {Result2, Response2, State2}  = refresh_token:process_get(Request2, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_request\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1),
-     ?_assertEqual({halt, 400}, Result2),
-     ?_assertEqual(<<"{\"error\":\"invalid_request\"}">>, 
-                   wrq:resp_body(Response2)),
-     ?_assertEqual(?STATE, State2)
+bad_request_tests({Token1, Token2})->
+    Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "foo"},
+                                 {"refresh_token", Token1}]),
+    Result2 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"refresh_token", Token2}]),
+    Result3 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"}]),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(400, test_util:result_status(Result2)),
+     ?_assertEqual(400, test_util:result_status(Result3))
     ].
 
-unsupported_grant_type_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "authorization_code"},
-                                       {"refresh_token", ?REFRESH_TOKEN}],
-                                      [{"Authorization",
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)}]),
-    {Result1, Response1, State1}  = refresh_token:process_get(Request1, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"unsupported_grant_type\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1)
+unauthorized_tests({Token1, Token2})->
+    Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token1},
+                                 {"client_id", ?CLIENT1_ID}]),
+    Result2 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token2},
+                                 {"client_secret", ?CLIENT1_SECRET}]),
+    [?_assertEqual(401, test_util:result_status(Result1)),
+     ?_assertEqual(401, test_util:result_status(Result2))
     ].
 
-invalid_client_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", ?REFRESH_TOKEN}],
-                                      []),
-    {Result1, Response1, State1}  = refresh_token:process_get(Request1, ?STATE),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", ?REFRESH_TOKEN}],
-                                      [{"Authorization", "foo"}]),
-    {Result2, Response2, State2} = refresh_token:process_get(Request2, ?STATE),
-    Request3 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", ?REFRESH_TOKEN}],
-                                      [{"Authorization", 
-                                              ?BASIC_CREDENTIALS(?CLIENT1_ID, 
-                                                                 "")
-                                              }]),
-    {Result3, Response3, State3} = refresh_token:process_get(Request3, ?STATE),
-    Request4 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", ?REFRESH_TOKEN}],
-                                      [{"Authorization",
-                                        ?BASIC_CREDENTIALS("foo",
-                                                           ?CLIENT1_SECRET)
-                                        }]),
-    {Result4, Response4, State4} = refresh_token:process_get(Request4, ?STATE),
-    Request5 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"client_id=", ?CLIENT1_ID},
-                                       {"refresh_token", ?REFRESH_TOKEN}], []),
-    {Result5, Response5, State5} = refresh_token:process_get(Request5, ?STATE),
-    Request6 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"client_secret=", ?CLIENT1_SECRET},
-                                       {"refresh_token", ?REFRESH_TOKEN}], []),
-    {Result6, Response6, State6} = refresh_token:process_get(Request6, ?STATE),
-    [?_assertEqual({halt, 401}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_client\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual("Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", 
-                   wrq:get_resp_header("WWW-Authenticate", Response1)),
-     ?_assertEqual(?STATE, State1),
-     ?_assertEqual({halt, 401}, Result2),
-     ?_assertEqual(<<"{\"error\":\"invalid_client\"}">>, 
-                   wrq:resp_body(Response2)),
-     ?_assertEqual("Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", 
-                   wrq:get_resp_header("WWW-Authenticate", Response2)),
-     ?_assertEqual(?STATE, State2),
-     ?_assertEqual({halt, 401}, Result3),
-     ?_assertEqual(<<"{\"error\":\"invalid_client\"}">>, 
-                   wrq:resp_body(Response3)),
-     ?_assertEqual("Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", 
-                   wrq:get_resp_header("WWW-Authenticate", Response3)),
-     ?_assertEqual(?STATE, State3),
-     ?_assertEqual({halt, 401}, Result4),
-     ?_assertEqual(<<"{\"error\":\"invalid_client\"}">>, 
-                   wrq:resp_body(Response4)),
-     ?_assertEqual("Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", 
-                   wrq:get_resp_header("WWW-Authenticate", Response4)),
-     ?_assertEqual(?STATE, State4),
-     ?_assertEqual({halt, 401}, Result5),
-     ?_assertEqual(<<"{\"error\":\"invalid_client\"}">>, 
-                   wrq:resp_body(Response5)),
-     ?_assertEqual("Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", 
-                   wrq:get_resp_header("WWW-Authenticate", Response5)),
-     ?_assertEqual(?STATE, State5),
-     ?_assertEqual({halt, 401}, Result6),
-     ?_assertEqual(<<"{\"error\":\"invalid_client\"}">>, 
-                   wrq:resp_body(Response6)),
-     ?_assertEqual("Basic realm=\"" ++ ?AUTHENTICATE_REALM ++ "\"", 
-                   wrq:get_resp_header("WWW-Authenticate", Response6)),
-     ?_assertEqual(?STATE, State6)
+invalid_client_tests({Token1, Token2})->
+    Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token1},
+                                 {"client_id", "foo"},
+                                 {"client_secret", ?CLIENT1_SECRET}]),
+    Result2 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token2},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"client_secret", "foo"}]),
+    Result3 = test_util:request(?REFRESH_TOKEN_URL, post,
+                                [{"Authorization",
+                                  ?BASIC_CREDENTIALS(?CLIENT1_ID, "foo")}],
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token1}]),
+    Result4 = test_util:request(?REFRESH_TOKEN_URL, post,
+                                [{"Authorization",
+                                  ?BASIC_CREDENTIALS("foo", ?CLIENT1_SECRET)}],
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token2}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    BodyProplist2 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result2)),
+    BodyProplist3 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result3)),
+    BodyProplist4 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result4)),
+    [?_assertEqual(401, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("invalid_client", proplists:get_value("error",
+                                                         BodyProplist1)),
+     ?_assertEqual(401, test_util:result_status(Result2)),
+     ?_assertEqual(1, length(BodyProplist2)),
+     ?_assertEqual("invalid_client", proplists:get_value("error", 
+                                                         BodyProplist2)),
+     ?_assertEqual(401, test_util:result_status(Result3)),
+     ?_assertEqual(1, length(BodyProplist3)),
+     ?_assertEqual("invalid_client", proplists:get_value("error", 
+                                                         BodyProplist3)),
+     ?_assertEqual(401, test_util:result_status(Result4)),
+     ?_assertEqual(1, length(BodyProplist4)),
+     ?_assertEqual("invalid_client", proplists:get_value("error", 
+                                                         BodyProplist4))
     ].
 
-invalid_grant_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", "foo"}],
-                                      [{"Authorization", 
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)
-                          }]),
-    {Result1, Response1, State1} = refresh_token:process_get(Request1, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_grant\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1)
+invalid_grant_tests(_Context)->
+    Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", "foo"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"client_secret", ?CLIENT1_SECRET}]),
+    Result2 = test_util:request(?REFRESH_TOKEN_URL, post,
+                                [{"Authorization",
+                                  ?BASIC_CREDENTIALS(?CLIENT1_ID, 
+                                                     ?CLIENT1_SECRET)}],
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", "foo"}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    BodyProplist2 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result2)),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("invalid_grant", proplists:get_value("error", 
+                                                        BodyProplist1)),
+     ?_assertEqual(400, test_util:result_status(Result2)),
+     ?_assertEqual(1, length(BodyProplist2)),
+     ?_assertEqual("invalid_grant", proplists:get_value("error",
+                                                        BodyProplist2))
     ].
 
-invalid_scope_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", ?REFRESH_TOKEN},
-                                       {"scope", "root.a.2"}],
-                                      [{"Authorization", 
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)
-                          }]),
-    {Result1, Response1, State1}  = refresh_token:process_get(Request1, ?STATE),
-    [?_assertEqual({halt, 400}, Result1),
-     ?_assertEqual(<<"{\"error\":\"invalid_scope\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1)
-    ].
-
-successful_tests(_Config)->
-    Request1 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"refresh_token", ?REFRESH_TOKEN}],
-                                      [{"Authorization", 
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)
-                          }]),
-    {Result1, Response1, State1} = refresh_token:process_get(Request1, ?STATE),
-    Request2 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"client_id", "foo"},
-                                       {"client_secret", "foo"},
-                                       {"refresh_token", ?REFRESH_TOKEN},
-                                       {"scope", "root.a root.b.*"}],
-                                      [{"Authorization", 
-                                        ?BASIC_CREDENTIALS(?CLIENT1_ID,
-                                                           ?CLIENT1_SECRET)
-                          }]),
-    {Result2, Response2, State2} = refresh_token:process_get(Request2, ?STATE),
-    Request3 = test_util:make_get_wrq(?PATH, 
-                                      [{"grant_type", "refresh_token"},
-                                       {"client_id", ?CLIENT1_ID},
-                                       {"client_secret", ?CLIENT1_SECRET},
-                                       {"refresh_token", ?REFRESH_TOKEN},
-                                       {"scope", "root.b.1"}],
-                                      []),
-    {Result3, Response3, State3} = refresh_token:process_get(Request3, ?STATE),
-    [?_assertEqual({halt, 200}, Result1),
-     ?_assertEqual(<<"{\"access_token\":\"", ?TOKEN_CODE, "\",",
-                    "\"token_type\":\"bearer\",\"expires_in\":3600,",
-                    "\"scope\":\"root.a root.b.*\"}">>, 
-                   wrq:resp_body(Response1)),
-     ?_assertEqual(?STATE, State1),
-     ?_assertEqual({halt, 200}, Result2),
-     ?_assertEqual(<<"{\"access_token\":\"", ?TOKEN_CODE, "\",",
-                    "\"token_type\":\"bearer\",\"expires_in\":3600,", 
-                    "\"scope\":\"root.a root.b.*\"}">>, wrq:resp_body(
-                     Response2)),
-     ?_assertEqual(?STATE, State2),
-     ?_assertEqual({halt, 200}, Result3),
-     ?_assertEqual(<<"{\"access_token\":\"", ?TOKEN_CODE, "\",",
-                     "\"token_type\":\"bearer\",\"expires_in\":3600,",
-                     "\"scope\":\"root.b.1\"}">>, 
-                   wrq:resp_body(Response3)),
-     ?_assertEqual(?STATE, State3)
+successful_tests({Token1, Token2})->    
+    Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token1},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"client_secret", ?CLIENT1_SECRET}]),
+    Result2 = test_util:request(?REFRESH_TOKEN_URL, post,
+                                [{"Authorization",
+                                  ?BASIC_CREDENTIALS(?CLIENT1_ID, 
+                                                     ?CLIENT1_SECRET)}],
+                                [{"grant_type", "refresh_token"},
+                                 {"refresh_token", Token2},
+                                 {"redirect_uri", ?CLIENT1_URI}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    BodyProplist2 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result2)),
+    [?_assertEqual(200, test_util:result_status(Result1)),
+     ?_assertEqual(4, length(BodyProplist1)),
+     ?_assertNotEqual(undefined, proplists:get_value("access_token",
+                                                     BodyProplist1)),
+     ?_assertEqual("bearer", proplists:get_value("token_type",
+                                                 BodyProplist1)),
+     ?_assertEqual("3600", proplists:get_value("expires_in", BodyProplist1)),
+     ?_assertEqual(?CLIENT1_SCOPE, proplists:get_value("scope", BodyProplist1)),
+     ?_assertEqual(200, test_util:result_status(Result2)),
+     ?_assertEqual(4, length(BodyProplist2)),
+     ?_assertNotEqual(undefined, proplists:get_value("access_token",
+                                                     BodyProplist2)),
+     ?_assertEqual("bearer", proplists:get_value("token_type",
+                                                 BodyProplist2)),
+     ?_assertEqual("3600", proplists:get_value("expires_in", BodyProplist2)),
+     ?_assertEqual(?CLIENT1_SCOPE, proplists:get_value("scope", BodyProplist2))
     ].

@@ -12,7 +12,8 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {scope                     :: oauth2:scope() |
+-record(request, {grant_type                :: binary(),
+                  scope                     :: oauth2:scope() |
                                                undefined,
                   client_id = undefined     :: binary() | undefined,
                   client_secret = undefined :: binary() | undefined 
@@ -31,11 +32,12 @@ malformed_request(ReqData, Context) ->
     Params = oauth2_wrq:parse_body(ReqData),
     GrantType = oauth2_wrq:get_grant_type(Params),
     if
-        GrantType /= client_credentials ->
+        GrantType == undefined ->
             {true, ReqData, Context};
         true ->
             Scope = oauth2_wrq:get_scope(Params),
-            {false, ReqData, [{request, #request{scope = Scope}} |
+            {false, ReqData, [{request, #request{grant_type = GrantType,
+                                                 scope = Scope}} |
                                   Context]}
     end.
 
@@ -53,12 +55,13 @@ is_authorized(ReqData, Context) ->
     end.
 
 process_post(ReqData, Context) ->
-    #request{scope = Scope,
+    #request{grant_type = GrantType,
+             scope = Scope,
              client_id = ClientId,
              client_secret = ClientSecret} = 
                 proplists:get_value(authorized_request, Context),
-    case oauth2:authorize_client_credentials(ClientId, ClientSecret, Scope,
-                                             none) of
+    case oauth2:authorize_client_credentials(GrantType, ClientId, ClientSecret, 
+                                             Scope, none) of
         {ok, {_AppContext, Authorization}} ->
             {ok, {_AppContext, Response}} = 
                 oauth2:issue_token(Authorization, none),
@@ -71,12 +74,6 @@ process_post(ReqData, Context) ->
             oauth2_wrq:access_token_response(ReqData, Token,
                                              Type, Expires,
                                              Scope, Context);
-        {error, invalid_scope} ->
-            oauth2_wrq:json_error_response(ReqData,
-                                           invalid_scope, 
-                                           Context);
-        {error, invalid_client} ->
-            oauth2_wrq:json_error_response(ReqData, 
-                                           invalid_client,
-                                           Context)
+        {error, Error} ->
+            oauth2_wrq:json_error_response(ReqData, Error, Context)
     end.

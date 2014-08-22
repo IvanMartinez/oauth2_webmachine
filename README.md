@@ -105,7 +105,7 @@ Below are some considerations and clarifications about this implementaton, refer
 
 2.3. Client Authentication
 
-Both the use of HTTP Basic authentication [RFC2617], or client_id and client_secret parameters, are supported. If a client wrongly uses both in the same request, only the HTTP Basic authentication is considered.
+Both the use of HTTP Basic authentication [RFC2617](http://tools.ietf.org/html/rfc2617), or client_id and client_secret parameters, are supported. If a client wrongly uses both in the same request, only the HTTP Basic authentication is considered.
 
 3.1. Authorization Endpoint
 3.1.2.2. Registration Requirements
@@ -116,7 +116,7 @@ Registering multiple redirection endpoints for a client is not allowed.
 
 Scopes may be separated by "+" and/or "%20" characters. If the requested scope is a subset of the registered scope, the response returns the requested scope. If the request contains no scope parameter, the response returns the registered scope. If the registered scope is empty, and the request contains no scope parameter or its value is empty, the response returns an empty scope value.
 
-For more information about scope validation, see https://github.com/kivra/oauth2 README.md file.
+For more information about scope validation, see [https://github.com/kivra/oauth2 README.md](https://github.com/kivra/oauth2/blob/master/README.md) file.
 
 4.1. Authorization Code Grant
 4.1.1 Authorization Request
@@ -127,12 +127,14 @@ The redirect_uri parameter is required.
 
 The following errors may occur before the redirection URI is verified, so they are not forwarded to any URI. They are the direct response to the request.
 
-- HTTP 400 Bad Request: The request is missing some of the following parameters: response_type (or its value isn't "code"), client_id or redirection_uri. If it is a POST request, this error is also returned when username or password are missing. 
+- HTTP 400 Bad Request: The request is missing some of the following parameters: response_type, client_id or redirection_uri. If it is a POST request, this error is also returned when username or password are missing. 
 - HTTP 403 Forbidden: The value of cliend_id or redirection_uri doesn't match a registered client.
 
 Any other error or successful response is forwarded to the registered redirection URI of the client with a HTTP 302 response, as explained in the specification.
 
-*Notice response_type errors are not forwarded to the redirection URI as required by the specification.*
+4.2.2.1. Error Response
+
+Same as before, except for there are not HTTP 403 Forbidden responses.
 
 4.1.3. Access Token Request
 

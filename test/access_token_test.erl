@@ -27,12 +27,13 @@ setup_test_() ->
         fun before_tests/0,
         fun after_tests/1,
         fun (Context) -> [bad_request_tests(Context),
-                         unauthorized_tests(Context),
-                         invalid_client_tests(Context),
-                         invalid_grant_tests(Context),
-                         successful_tests(Context),
-                         revoked_tests(Context)
-                        ]
+                          unauthorized_tests(Context),
+                          invalid_client_tests(Context),
+                          unsupported_grant_type_tests(Context),
+                          invalid_grant_tests(Context),
+                          successful_tests(Context),
+                          revoked_tests(Context)
+                         ]
         end
     }.
 
@@ -69,22 +70,17 @@ after_tests(_Context) ->
 
 bad_request_tests({Code1, Code2})->
     Result1 = test_util:request(?ACCESS_TOKEN_URL, post, 
-                                [{"grant_type", "foo"},
-                                 {"code", Code1},
-                                 {"redirect_uri", ?CLIENT1_URI}]),
-    Result2 = test_util:request(?ACCESS_TOKEN_URL, post, 
                                 [{"code", Code2},
                                  {"redirect_uri", ?CLIENT1_URI}]),
-    Result3 = test_util:request(?ACCESS_TOKEN_URL, post, 
+    Result2 = test_util:request(?ACCESS_TOKEN_URL, post, 
                                 [{"grant_type", "authorization_code"},
                                  {"redirect_uri", ?CLIENT1_URI}]),
-    Result4 = test_util:request(?ACCESS_TOKEN_URL, post, 
+    Result3 = test_util:request(?ACCESS_TOKEN_URL, post, 
                                 [{"grant_type", "authorization_code"},
                                  {"code", Code1}]),
     [?_assertEqual(400, test_util:result_status(Result1)),
      ?_assertEqual(400, test_util:result_status(Result2)),
-     ?_assertEqual(400, test_util:result_status(Result3)),
-     ?_assertEqual(400, test_util:result_status(Result4))
+     ?_assertEqual(400, test_util:result_status(Result3))
     ].
 
 unauthorized_tests({Code1, Code2})->
@@ -151,6 +147,21 @@ invalid_client_tests({Code1, Code2})->
      ?_assertEqual(1, length(BodyProplist4)),
      ?_assertEqual("invalid_client", proplists:get_value("error", 
                                                          BodyProplist4))
+    ].
+
+unsupported_grant_type_tests({Code1, _Code2})->
+    Result1 = test_util:request(?ACCESS_TOKEN_URL, post, 
+                                [{"grant_type", "foo"},
+                                 {"code", Code1},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"client_secret", ?CLIENT1_SECRET}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("unsupported_grant_type", proplists:get_value("error", 
+                                                        BodyProplist1))
     ].
 
 invalid_grant_tests(_Context)->

@@ -86,16 +86,8 @@ get_grant_type(Params) ->
     case proplists:get_value("grant_type", Params) of
         undefined ->
             undefined;
-        "authorization_code" ->
-            authorization_code;
-        "client_credentials" ->
-            client_credentials;
-        "password" ->
-            password;
-        "refresh_token" ->
-            refresh_token;
-        _ ->
-            unsupported
+        Code ->
+            list_to_binary(Code)
     end.
 
 -spec get_refresh_token(Params :: proplists:proplist()) ->
@@ -114,16 +106,12 @@ get_refresh_token(Params) ->
           code | token | undefined | unsupported.
 get_response_type(Params) ->
     case proplists:get_value("response_type", Params) of
-        "code" ->
-            code;
-        "token" ->
-            token;
         undefined ->
             undefined;
-        _ ->
-            unsupported
+        Code ->
+            list_to_binary(Code)
     end.
-
+        
 -spec get_owner_credentials(Params :: proplists:proplist()) ->
           {binary(), binary()} | undefined.
 get_owner_credentials(Params) ->

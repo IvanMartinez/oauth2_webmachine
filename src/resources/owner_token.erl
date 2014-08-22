@@ -11,7 +11,8 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {username          :: binary(),
+-record(request, {grant_type        :: binary(),
+                  username          :: binary(),
                   password          :: binary(),
                   scope = undefined :: oauth2:scope() | undefined
                  }).
@@ -30,24 +31,27 @@ malformed_request(ReqData, Context) ->
     GrantType = oauth2_wrq:get_grant_type(Params),
     OwnerCredentials = oauth2_wrq:get_owner_credentials(Params), 
     if
-        GrantType /= password ->
+        GrantType == undefined ->
             {true, ReqData, Context};
         OwnerCredentials == undefined ->
             {true, ReqData, Context};
         true ->
             Scope = oauth2_wrq:get_scope(Params),
             {Username, Password} = OwnerCredentials,
-            {false, ReqData, [{request, #request{username = Username,
+            {false, ReqData, [{request, #request{grant_type = GrantType,
+                                                 username = Username,
                                                  password = Password,
                                                  scope = Scope}} |
                                 Context]}
     end.
 
 process_post(ReqData, Context) ->
-    #request{username = Username,
+    #request{grant_type = GrantType,
+             username = Username,
              password = Password,
              scope = Scope} = proplists:get_value(request, Context),
-    case oauth2:authorize_password(Username, Password, Scope, none) of
+    case oauth2:authorize_password(GrantType, Username, Password, Scope, 
+                                   none) of
         {ok, {_AppContext, Authorization}} ->
             {ok, {_AppContext, Response}} = 
                 oauth2:issue_token(Authorization, none),

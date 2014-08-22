@@ -13,7 +13,8 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {code                      :: oauth2:token(),
+-record(request, {grant_type                :: binary(),
+                  code                      :: oauth2:token(),
                   redirect_uri              :: binary(),
                   client_id = undefined     :: binary() | undefined,
                   client_secret = undefined :: binary() | undefined 
@@ -34,7 +35,7 @@ malformed_request(ReqData, Context) ->
     Code = oauth2_wrq:get_code(Params),
     RedirectUri = oauth2_wrq:get_redirect_uri(Params),
     if
-        GrantType /= authorization_code ->
+        GrantType == undefined ->
             {true, ReqData, Context};
         Code == undefined ->
             {true, ReqData, Context};
@@ -42,7 +43,8 @@ malformed_request(ReqData, Context) ->
             {true, ReqData, Context};
         true ->
             {false, ReqData, [{request, 
-                               #request{code = Code,
+                               #request{grant_type = GrantType,
+                                        code = Code,
                                         redirect_uri = RedirectUri}} |
                                 Context]}
     end.
@@ -61,13 +63,14 @@ is_authorized(ReqData, Context) ->
     end.
     
 process_post(ReqData, Context) ->
-    #request{code = Code,
+    #request{grant_type = GrantType,
+             code = Code,
              redirect_uri = RedirectURI,
              client_id = ClientId,
              client_secret = ClientSecret} = 
                 proplists:get_value(authorized_request, Context),
-    case oauth2:authorize_code_grant(ClientId, ClientSecret, Code, RedirectURI,
-                                     none) of
+    case oauth2:authorize_code_grant(GrantType, ClientId, ClientSecret, Code, 
+                                     RedirectURI, none) of
         {ok, {_AppContext, Authorization}} ->
             {ok, {_AppContext, Response}} = 
                 oauth2:issue_token_and_refresh(Authorization, none),
@@ -79,8 +82,6 @@ process_post(ReqData, Context) ->
             oauth2_wrq:access_refresh_token_response(ReqData, AccessToken, Type,
                                                      Expires, RefreshToken, 
                                                      Scope, Context);
-        {error, invalid_client} ->
-            oauth2_wrq:json_error_response(ReqData, invalid_client, Context);
-        {error, invalid_grant} ->
-            oauth2_wrq:json_error_response(ReqData, invalid_grant, Context)
+        {error, Error} ->
+            oauth2_wrq:json_error_response(ReqData, Error, Context)
     end.

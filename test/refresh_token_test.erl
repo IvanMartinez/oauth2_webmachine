@@ -31,6 +31,7 @@ setup_test_() ->
         fun (Context) -> [bad_request_tests(Context),
                           unauthorized_tests(Context),
                           invalid_client_tests(Context),
+                          unsupported_grant_type_tests(Context),
                           invalid_grant_tests(Context),
                           successful_tests(Context)
                          ]
@@ -89,15 +90,11 @@ after_tests(_Context) ->
 
 bad_request_tests({Token1, Token2})->
     Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
-                                [{"grant_type", "foo"},
-                                 {"refresh_token", Token1}]),
-    Result2 = test_util:request(?REFRESH_TOKEN_URL, post, 
                                 [{"refresh_token", Token2}]),
-    Result3 = test_util:request(?REFRESH_TOKEN_URL, post, 
+    Result2 = test_util:request(?REFRESH_TOKEN_URL, post, 
                                 [{"grant_type", "refresh_token"}]),
     [?_assertEqual(400, test_util:result_status(Result1)),
-     ?_assertEqual(400, test_util:result_status(Result2)),
-     ?_assertEqual(400, test_util:result_status(Result3))
+     ?_assertEqual(400, test_util:result_status(Result2))
     ].
 
 unauthorized_tests({Token1, Token2})->
@@ -160,6 +157,20 @@ invalid_client_tests({Token1, Token2})->
                                                          BodyProplist4))
     ].
 
+unsupported_grant_type_tests({Token1, _Token2})->
+    Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
+                                [{"grant_type", "foo"},
+                                 {"refresh_token", Token1},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"client_secret", ?CLIENT1_SECRET}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("unsupported_grant_type", proplists:get_value(
+                     "error", BodyProplist1))
+    ].
+
 invalid_grant_tests(_Context)->
     Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
                                 [{"grant_type", "refresh_token"},
@@ -190,7 +201,6 @@ successful_tests({Token1, Token2})->
     Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
                                 [{"grant_type", "refresh_token"},
                                  {"refresh_token", Token1},
-                                 {"redirect_uri", ?CLIENT1_URI},
                                  {"client_id", ?CLIENT1_ID},
                                  {"client_secret", ?CLIENT1_SECRET}]),
     Result2 = test_util:request(?REFRESH_TOKEN_URL, post,

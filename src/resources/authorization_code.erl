@@ -13,7 +13,8 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {client_id             :: binary(),
+-record(request, {response_type         :: binary(),
+                  client_id             :: binary(),
                   redirect_uri          :: binary(),
                   scope                 :: binary() | oauth2:scope() | 
                                            undefined,
@@ -45,10 +46,7 @@ malformed_request(ReqData, Context) ->
     State = oauth2_wrq:get_state(Params),
     OwnerCredentials = oauth2_wrq:get_owner_credentials(Params), 
     if
-        ResponseType /= code ->
-            %% @todo 4.1.2.1 of the spec requires an unsupported_response_type
-            %% error to be send to the redirection URI in this case, but that
-            %% is messy to implement with the current API of kivra/ouauth2.
+        ResponseType == undefined ->
             {true, ReqData, Context};
         ClientId == undefined ->
             {true, ReqData, Context};
@@ -69,7 +67,8 @@ malformed_request(ReqData, Context) ->
         true ->
             Scope = oauth2_wrq:get_scope(Params),
             {Username, Password} = OwnerCredentials,
-            {false, ReqData, [{request, #request{client_id = ClientId,
+            {false, ReqData, [{request, #request{response_type = ResponseType,
+                                                 client_id = ClientId,
                                                  redirect_uri = Uri,
                                                  scope = Scope,
                                                  state = State,
@@ -82,7 +81,8 @@ malformed_request(ReqData, Context) ->
               Context   :: term()) ->
         {{halt, pos_integer()}, #wm_reqdata{}, _}.
 to_html(ReqData, Context) ->
-    #request{client_id = ClientId,
+    #request{response_type = ResponseType,
+             client_id = ClientId,
              redirect_uri = RedirectURI,
              scope = Scope,
              state = State} = proplists:get_value(request, Context),
@@ -94,7 +94,8 @@ to_html(ReqData, Context) ->
          <<"<br><form action=\"authorization_code\" method=\"post\">"
            "User: <input type=\"text\" name=\"username\"><br>"
            "Password: <input type=\"password\" name=\"password\"><br>"
-           "<input type=\"hidden\" name=\"response_type\" value=\"code\"><br>"
+           "<input type=\"hidden\" name=\"response_type\" value=\"">>/binary,
+           ResponseType/binary, <<"\"><br>"
            "<input type=\"hidden\" name=\"client_id\" value=\"">>/binary,
            ClientId/binary, <<"\"><br>"
            "<input type=\"hidden\" name=\"redirect_uri\" value=\"">>/binary,
@@ -111,17 +112,19 @@ to_html(ReqData, Context) ->
                    Context   :: term()) ->
         {{halt, pos_integer()}, #wm_reqdata{}, _}.
 process_post(ReqData, Context) ->
-    #request{client_id = ClientId,
+    #request{response_type = ResponseType,
+             client_id = ClientId,
              redirect_uri = RedirectURI,
              scope = Scope,
              state = State,
              username = Username,
              password = Password} = proplists:get_value(request, Context),
-    case oauth2:authorize_code_request(ClientId,
-                                        RedirectURI,
-                                        Username,
-                                        Password,
-                                        Scope, none) of
+    case oauth2:authorize_code_request(ResponseType,
+                                       ClientId,
+                                       RedirectURI,
+                                       Username,
+                                       Password,
+                                       Scope, none) of
         {ok, {_AppContext, Authorization}} ->
             {ok, {_AppContext2, Response}} = oauth2:issue_code(Authorization, 
                                                                none),

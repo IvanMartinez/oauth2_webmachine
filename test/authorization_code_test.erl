@@ -22,11 +22,12 @@ setup_test_() ->
         fun before_tests/0,
         fun after_tests/1,
         fun (Context) -> [bad_request_tests(Context),
-                         unauthorized_client_tests(Context),
-                         invalid_scope_tests(Context),
-                         access_denied_tests(Context),
-                         successful_tests(Context)
-                        ] end
+                          unauthorized_client_tests(Context),
+                          unsupported_response_type_tests(Context),
+                          invalid_scope_tests(Context),
+                          access_denied_tests(Context),
+                          successful_tests(Context)
+                         ] end
     }.
 
 before_tests() ->
@@ -43,45 +44,35 @@ after_tests(_Context) ->
 
 bad_request_tests(_Context)->
     Result1 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
-                                [{"response_type", "foo"},
-                                 {"client_id", ?CLIENT1_ID},
+                                [{"client_id", ?CLIENT1_ID},
                                  {"redirect_uri", ?CLIENT1_URI}]),
     Result2 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
-                                [{"client_id", ?CLIENT1_ID},
+                                [{"response_type", "code"},
                                  {"redirect_uri", ?CLIENT1_URI}]),
     Result3 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
                                 [{"response_type", "code"},
-                                 {"redirect_uri", ?CLIENT1_URI}]),
-    Result4 = test_util:request(?AUTHORIZATION_CODE_URL, get, 
-                                [{"response_type", "code"},
                                  {"client_id", ?CLIENT1_ID}]),
+    Result4 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
     Result5 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
-                                [{"response_type", "foo"},
-                                 {"client_id", ?CLIENT1_ID},
+                                [{"response_type", "code"},
                                  {"redirect_uri", ?CLIENT1_URI},
                                  {"username", ?USER1_USERNAME},
                                  {"password", ?USER1_PASSWORD}]),
     Result6 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
-                                [{"client_id", ?CLIENT1_ID},
-                                 {"redirect_uri", ?CLIENT1_URI},
+                                [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
                                  {"username", ?USER1_USERNAME},
                                  {"password", ?USER1_PASSWORD}]),
     Result7 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
                                 [{"response_type", "code"},
+                                 {"client_id", ?CLIENT1_ID},
                                  {"redirect_uri", ?CLIENT1_URI},
-                                 {"username", ?USER1_USERNAME},
                                  {"password", ?USER1_PASSWORD}]),
     Result8 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
-                                [{"response_type", "code"},
-                                 {"client_id", ?CLIENT1_ID},
-                                 {"username", ?USER1_USERNAME},
-                                 {"password", ?USER1_PASSWORD}]),
-    Result9 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
-                                [{"response_type", "code"},
-                                 {"client_id", ?CLIENT1_ID},
-                                 {"redirect_uri", ?CLIENT1_URI},
-                                 {"password", ?USER1_PASSWORD}]),
-    Result10 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
                                 [{"response_type", "code"},
                                  {"client_id", ?CLIENT1_ID},
                                  {"redirect_uri", ?CLIENT1_URI},
@@ -93,9 +84,7 @@ bad_request_tests(_Context)->
      ?_assertEqual(400, test_util:result_status(Result5)),
      ?_assertEqual(400, test_util:result_status(Result6)),
      ?_assertEqual(400, test_util:result_status(Result7)),
-     ?_assertEqual(400, test_util:result_status(Result8)),
-     ?_assertEqual(400, test_util:result_status(Result9)),
-     ?_assertEqual(400, test_util:result_status(Result10))
+     ?_assertEqual(400, test_util:result_status(Result8))
     ].
 
 unauthorized_client_tests(_Context)->
@@ -113,6 +102,25 @@ unauthorized_client_tests(_Context)->
                                  {"password", ?USER1_PASSWORD}]),
     [?_assertEqual(403, test_util:result_status(Result1)),
      ?_assertEqual(403, test_util:result_status(Result2))
+    ].
+
+unsupported_response_type_tests(_Config) ->
+    Result1 = test_util:request(?AUTHORIZATION_CODE_URL, post, 
+                                [{"response_type", "foo"},
+                                 {"client_id", ?CLIENT1_ID},
+                                 {"redirect_uri", ?CLIENT1_URI},
+                                 {"scope", ?CLIENT1_SCOPE},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD},
+                                 {"state", ?STATE}]),
+    {LocationBaseURL1, LocationParams1} = 
+        test_util:split_url(test_util:result_location(Result1)),
+    [?_assertEqual(302, test_util:result_status(Result1)),
+     ?_assertEqual(?CLIENT1_URI, LocationBaseURL1),
+     ?_assertEqual(2, length(LocationParams1)),
+     ?_assertEqual("unsupported_response_type", 
+                   proplists:get_value("error", LocationParams1)),
+     ?_assertEqual(?STATE, proplists:get_value("state", LocationParams1))
     ].
 
 invalid_scope_tests(_Context) ->

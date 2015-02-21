@@ -196,6 +196,9 @@ get_request_id(Params) ->
     {{halt, 200}, #wm_reqdata{}, term()}.
 access_token_response(#wm_reqdata{} = Request, AccessToken, Type, Expires, 
                       Scope, State) ->
+    Response = wrq:set_resp_headers([{"Cache-Control", "no-store"},
+                                     {"Pragma", "no-cache"}],
+                                    Request),
     {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ 
                                         binary_to_list(AccessToken) ++ 
                                         "\",\"token_type\":\"" ++ 
@@ -203,7 +206,7 @@ access_token_response(#wm_reqdata{} = Request, AccessToken, Type, Expires,
                                         "\",\"expires_in\":" ++ 
                                         integer_to_list(Expires) ++ 
                                         ",\"scope\":\"" ++ 
-                                        scope_string(Scope) ++"\"}", Request), 
+                                        scope_string(Scope) ++"\"}", Response), 
      State}.
 
 -spec access_refresh_token_response(Request         :: #wm_reqdata{},
@@ -216,6 +219,9 @@ access_token_response(#wm_reqdata{} = Request, AccessToken, Type, Expires,
     {{halt, 200}, #wm_reqdata{}, term()}.
 access_refresh_token_response(#wm_reqdata{} = Request, AccessToken, Type, 
                               Expires, RefreshToken, Scope, State) ->
+    Response = wrq:set_resp_headers([{"Cache-Control", "no-store"},
+                                     {"Pragma", "no-cache"}],
+                                    Request),
     {{halt, 200}, wrq:set_resp_body("{\"access_token\":\"" ++ 
                                         binary_to_list(AccessToken) ++ 
                                         "\",\"token_type\":\"" ++ 
@@ -225,7 +231,7 @@ access_refresh_token_response(#wm_reqdata{} = Request, AccessToken, Type,
                                         ",\"refresh_token\":\"" ++ 
                                         binary_to_list(RefreshToken) ++
                                         "\",\"scope\":\"" ++
-                                        scope_string(Scope) ++"\"}", Request), 
+                                        scope_string(Scope) ++"\"}", Response), 
      State}.
 
 
@@ -298,6 +304,7 @@ redirected_authorization_code_response(Request, Uri, Code, State, Context) ->
                                 Error   :: access_denied | invalid_request |
                                     invalid_scope | request_timeout | 
                                     server_error | unauthorized_client |
+                                    unsupported_grant_type |
                                     unsupported_response_type,
                                 State   :: binary(),
                                 Context :: term()) ->
@@ -316,6 +323,8 @@ redirected_error_response(Request, Uri, Error, State, Context) ->
                           "server_error";
                       unauthorized_client ->
                           "unauthorized_client";
+                      unsupported_grant_type ->
+                          "unsupported_grant_type";
                       unsupported_response_type ->
                           "unsupported_response_type"
                   end,

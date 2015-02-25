@@ -280,7 +280,7 @@ html_response(ReqData, HttpStatus, Body, Context) ->
 redirected_access_token_response(Request, Uri, Token, Type, Expires, Scope,
                                  State, Context) ->
     {{halt, 302}, wrq:set_resp_header(
-       "Location", binary_to_list(Uri) ++ "?access_token=" ++ 
+       "Location", binary_to_list(Uri) ++ "#access_token=" ++ 
            binary_to_list(Token) ++ "&token_type=" ++ binary_to_list(Type) ++
            "&expires_in=" ++ integer_to_list(Expires) ++ "&scope=" ++ 
             scope_string(Scope) ++ state_to_uri(State),

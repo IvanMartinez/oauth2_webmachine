@@ -83,7 +83,7 @@ simple_json_to_proplist(JsonString) ->
 
 -spec split_url(URL :: string()) -> {string(), proplists:proplist()}.
 split_url(URL) ->
-    case string:tokens(URL, "?") of
+    case string:tokens(URL, "?#") of
         [] -> {"", 0, []};
         [BaseURL] -> {BaseURL, 0, []};
         [BaseURL, QueryString] ->

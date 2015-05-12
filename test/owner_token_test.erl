@@ -19,6 +19,7 @@ setup_test_() ->
         fun before_tests/0,
         fun after_tests/1,
         fun (Config) -> [bad_request_tests(Config),
+                         unsupported_grant_type_tests(Config),
                          invalid_scope_tests(Config),
                          access_denied_tests(Config),
                          successful_tests(Config)
@@ -39,22 +40,30 @@ after_tests(_Config) ->
 
 bad_request_tests(_Config)->
     Result1 = test_util:request(?OWNER_TOKEN_URL, post, 
-                                [{"grant_type", "foo"},
-                                 {"username", ?USER1_USERNAME},
-                                 {"password", ?USER1_PASSWORD}]),
-    Result2 = test_util:request(?OWNER_TOKEN_URL, post, 
                                 [{"username", ?USER1_USERNAME},
                                  {"password", ?USER1_PASSWORD}]),
-    Result3 = test_util:request(?OWNER_TOKEN_URL, post, 
+    Result2 = test_util:request(?OWNER_TOKEN_URL, post, 
                                 [{"grant_type", "password"},
                                  {"password", ?USER1_PASSWORD}]),
-    Result4 = test_util:request(?OWNER_TOKEN_URL, post, 
+    Result3 = test_util:request(?OWNER_TOKEN_URL, post, 
                                 [{"grant_type", "password"},
                                  {"username", ?USER1_USERNAME}]),
     [?_assertEqual(400, test_util:result_status(Result1)),
      ?_assertEqual(400, test_util:result_status(Result2)),
-     ?_assertEqual(400, test_util:result_status(Result3)),
-     ?_assertEqual(400, test_util:result_status(Result4))
+     ?_assertEqual(400, test_util:result_status(Result3))
+    ].
+
+unsupported_grant_type_tests(_Context) ->
+    Result1 = test_util:request(?OWNER_TOKEN_URL, post, 
+                                [{"grant_type", "foo"},
+                                 {"username", ?USER1_USERNAME},
+                                 {"password", ?USER1_PASSWORD}]),
+    BodyProplist1 = test_util:simple_json_to_proplist(test_util:result_body(
+                                                        Result1)),
+    [?_assertEqual(400, test_util:result_status(Result1)),
+     ?_assertEqual(1, length(BodyProplist1)),
+     ?_assertEqual("unsupported_grant_type", 
+                   proplists:get_value("error", BodyProplist1))
     ].
 
 invalid_scope_tests(_Config) ->

@@ -12,14 +12,15 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {response_type         :: binary(),
+-record(request, {response_type         :: atom(),
                   client_id             :: binary(),
                   redirect_uri          :: binary(),
                   scope                 :: binary() | oauth2:scope() |
                                            undefined,
                   state                 :: binary() | undefined,
-                  username = undefined  :: binary() | undefined,
-                  password = undefined  :: binary() | undefined
+                  owner_credentials = {undefined, undefined}
+                                :: {binary() | undefined,
+                                    binary() | undefined}
                  }).
 
 %% ====================================================================
@@ -64,14 +65,13 @@ malformed_request(ReqData, Context) ->
                                 Context]};
         true ->
             Scope = oauth2_wrq:get_scope(Params),
-            {Username, Password} = OwnerCredentials,
             {false, ReqData, [{request, #request{response_type = ResponseType,
                                                  client_id = ClientId,
                                                  redirect_uri = Uri,
                                                  scope = Scope,
                                                  state = State,
-                                                 username = Username,
-                                                 password = Password}} |
+                                                 owner_credentials = 
+                                                     OwnerCredentials}} |
                                 Context]}
     end.
 
@@ -84,6 +84,7 @@ to_html(ReqData, Context) ->
              redirect_uri = RedirectURI,
              scope = Scope,
              state = State} = proplists:get_value(request, Context),
+    BinaryResponseType = atom_to_binary(ResponseType, utf8),
     oauth2_wrq:html_response(
       ReqData, 
       200,
@@ -93,7 +94,7 @@ to_html(ReqData, Context) ->
            "User: <input type=\"text\" name=\"username\"><br>"
            "Password: <input type=\"password\" name=\"password\"><br>"
            "<input type=\"hidden\" name=\"response_type\" value=\"">>/binary,
-           ResponseType/binary, <<"\"><br>"
+           BinaryResponseType/binary, <<"\"><br>"
            "<input type=\"hidden\" name=\"client_id\" value=\"">>/binary,
            ClientId/binary, <<"\"><br>"
            "<input type=\"hidden\" name=\"redirect_uri\" value=\"">>/binary,
@@ -114,26 +115,32 @@ process_post(ReqData, Context) ->
              redirect_uri = RedirectURI,
              scope = Scope,
              state = State,
-             username = Username,
-             password = Password} = proplists:get_value(request, Context),
-    case oauth2:authorize_password(ResponseType, Username, Password, Scope, 
-                                   none) of
-        {ok, {_AppContext, Authorization}} ->
-            {ok, {_AppContext, Response}} = 
-                oauth2:issue_token(Authorization, none),
-            {ok, AccessToken} = oauth2_response:access_token(Response),
-            {ok, Type} = oauth2_response:token_type(Response),
-            {ok, Expires} = oauth2_response:expires_in(Response),
-            {ok, VerifiedScope} = oauth2_response:scope(Response),
-            oauth2_wrq:redirected_access_token_response(ReqData, 
-                                                        RedirectURI, 
-                                                        AccessToken,
-                                                        Type, 
-                                                        Expires, 
-                                                        VerifiedScope,
-                                                        State, 
-                                                        Context);
-        {error, Error} ->
+             owner_credentials = OwnerCredentials} = 
+        proplists:get_value(request, Context),
+    case ResponseType of
+        token ->
+            case oauth2:authorize_password(OwnerCredentials, Scope, none) of
+                {ok, {_AppContext, Authorization}} ->
+                    {ok, {_AppContext, Response}} = 
+                        oauth2:issue_token(Authorization, none),
+                    {ok, AccessToken} = oauth2_response:access_token(Response),
+                    {ok, Type} = oauth2_response:token_type(Response),
+                    {ok, Expires} = oauth2_response:expires_in(Response),
+                    {ok, VerifiedScope} = oauth2_response:scope(Response),
+                    oauth2_wrq:redirected_access_token_response(ReqData, 
+                                                                RedirectURI, 
+                                                                AccessToken,
+                                                                Type, 
+                                                                Expires, 
+                                                                VerifiedScope,
+                                                                State, 
+                                                                Context);
+                {error, Error} ->
+                    oauth2_wrq:redirected_error_response(
+                        ReqData, RedirectURI, Error, State, Context)
+            end;
+        _ ->
             oauth2_wrq:redirected_error_response(
-                ReqData, RedirectURI, Error, State, Context)
+                ReqData, RedirectURI, unsupported_response_type, State, 
+                Context)
     end.

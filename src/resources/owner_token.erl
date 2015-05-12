@@ -11,9 +11,8 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {grant_type        :: binary(),
-                  username          :: binary(),
-                  password          :: binary(),
+-record(request, {grant_type        :: atom(),
+                  owner_credentials :: {binary(), binary()},
                   scope = undefined :: oauth2:scope() | undefined
                  }).
 
@@ -37,30 +36,36 @@ malformed_request(ReqData, Context) ->
             {true, ReqData, Context};
         true ->
             Scope = oauth2_wrq:get_scope(Params),
-            {Username, Password} = OwnerCredentials,
             {false, ReqData, [{request, #request{grant_type = GrantType,
-                                                 username = Username,
-                                                 password = Password,
+                                                 owner_credentials =
+                                                     OwnerCredentials,
                                                  scope = Scope}} |
                                 Context]}
     end.
 
 process_post(ReqData, Context) ->
     #request{grant_type = GrantType,
-             username = Username,
-             password = Password,
+             owner_credentials = OwnerCredentials,
              scope = Scope} = proplists:get_value(request, Context),
-    case oauth2:authorize_password(GrantType, Username, Password, Scope, 
-                                   none) of
-        {ok, {_AppContext, Authorization}} ->
-            {ok, {_AppContext, Response}} = 
-                oauth2:issue_token(Authorization, none),
-            {ok, AccessToken} = oauth2_response:access_token(Response),
-            {ok, Type} = oauth2_response:token_type(Response),
-            {ok, Expires} = oauth2_response:expires_in(Response),
-            {ok, VerifiedScope} = oauth2_response:scope(Response),
-            oauth2_wrq:access_token_response(ReqData, AccessToken, Type,
-                                             Expires, VerifiedScope, Context);
-        {error, Error} ->
-            oauth2_wrq:json_error_response(ReqData, Error, Context)
+    case GrantType of
+        password ->
+            case oauth2:authorize_password(OwnerCredentials, Scope, none) of
+                {ok, {_AppContext, Authorization}} ->
+                    {ok, {_AppContext, Response}} = 
+                        oauth2:issue_token(Authorization, none),
+                    {ok, AccessToken} = oauth2_response:access_token(Response),
+                    {ok, Type} = oauth2_response:token_type(Response),
+                    {ok, Expires} = oauth2_response:expires_in(Response),
+                    {ok, VerifiedScope} = oauth2_response:scope(Response),
+                    oauth2_wrq:access_token_response(ReqData, AccessToken, Type,
+                                                     Expires, VerifiedScope, 
+                                                     Context);
+                {error, Error} ->
+                    oauth2_wrq:json_error_response(ReqData, Error, Context)
+            end;
+        _ ->
+            oauth2_wrq:json_error_response(ReqData, unsupported_grant_type,
+                                           Context)
     end.
+            
+

@@ -88,7 +88,7 @@ after_tests(_Context) ->
 %% Tests
 %% ===================================================================
 
-bad_request_tests({Token1, Token2})->
+bad_request_tests({_Token1, Token2})->
     Result1 = test_util:request(?REFRESH_TOKEN_URL, post, 
                                 [{"refresh_token", Token2}]),
     Result2 = test_util:request(?REFRESH_TOKEN_URL, post, 

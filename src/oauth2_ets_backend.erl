@@ -18,8 +18,8 @@
         ]).
 
 %%% OAuth2 backend functionality
--export([authenticate_username_password/3, 
-         authenticate_client/3, 
+-export([authenticate_user/2, 
+         authenticate_client/2, 
          associate_access_code/3, 
          associate_access_token/3,
          associate_refresh_token/3, 
@@ -58,17 +58,12 @@
           scope         :: [binary()]
          }).
 
--type client() :: #client{}.
-
 -record(resowner, {
           username  :: binary(),
           password  :: binary(),
           scope     :: scope()
          }).
 
--type grantctx() :: oauth2:context().
--type appctx()   :: oauth2:appctx().
--type token()    :: oauth2:token().
 -type scope()    :: oauth2:scope().
 
 
@@ -135,7 +130,7 @@ delete_client(Id) ->
 %%% OAuth2 backend functions
 %%%===================================================================
 
-authenticate_username_password(Username, Password, AppContext) ->
+authenticate_user({Username, Password}, AppContext) ->
     case get(?USER_TABLE, Username) of
         {ok, #resowner{password = Password} = Identity} ->
             {ok, {AppContext, Identity}};
@@ -145,7 +140,7 @@ authenticate_username_password(Username, Password, AppContext) ->
             {error, notfound}
     end.
 
-authenticate_client(ClientId, ClientSecret, AppContext) ->
+authenticate_client({ClientId, ClientSecret}, AppContext) ->
     case get(?CLIENT_TABLE, ClientId) of
         {ok, #client{client_secret = ClientSecret} = Identity} ->
             {ok, {AppContext, Identity}};

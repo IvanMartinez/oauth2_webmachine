@@ -13,11 +13,12 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {grant_type                :: binary(),
+-record(request, {grant_type                :: atom(),
                   code                      :: oauth2:token(),
                   redirect_uri              :: binary(),
-                  client_id = undefined     :: binary() | undefined,
-                  client_secret = undefined :: binary() | undefined 
+                  client_credentials = {undefined, undefined}
+                                :: {binary() | undefined, 
+                                    binary() | undefined}
                  }).
 
 %% ====================================================================
@@ -54,34 +55,44 @@ is_authorized(ReqData, Context) ->
     case oauth2_wrq:get_client_credentials(Params, ReqData) of
         undefined ->
             {"Basic", ReqData, Context};
-        {ClientId, ClientSecret} ->
+        ClientCredentials ->
             Request = proplists:get_value(request, Context),
             {true, ReqData, [{authorized_request, 
-                              Request#request{client_id = ClientId,
-                                              client_secret = ClientSecret}} |
-                                Context]}
+                              Request#request{client_credentials = 
+                                                  ClientCredentials}} |
+                                 Context]}
     end.
     
 process_post(ReqData, Context) ->
     #request{grant_type = GrantType,
              code = Code,
              redirect_uri = RedirectURI,
-             client_id = ClientId,
-             client_secret = ClientSecret} = 
+             client_credentials = ClientCredentials} = 
                 proplists:get_value(authorized_request, Context),
-    case oauth2:authorize_code_grant(GrantType, ClientId, ClientSecret, Code, 
-                                     RedirectURI, none) of
-        {ok, {_AppContext, Authorization}} ->
-            {ok, {_AppContext, Response}} = 
-                oauth2:issue_token_and_refresh(Authorization, none),
-            {ok, AccessToken} = oauth2_response:access_token(Response),
-            {ok, Type} = oauth2_response:token_type(Response),
-            {ok, Expires} = oauth2_response:expires_in(Response),
-            {ok, RefreshToken} = oauth2_response:refresh_token(Response),
-            {ok, Scope} = oauth2_response:scope(Response),
-            oauth2_wrq:access_refresh_token_response(ReqData, AccessToken, Type,
-                                                     Expires, RefreshToken, 
-                                                     Scope, Context);
-        {error, Error} ->
-            oauth2_wrq:json_error_response(ReqData, Error, Context)
+    case GrantType of
+        authorization_code ->
+            case oauth2:authorize_code_grant(ClientCredentials, Code, 
+                                             RedirectURI, none) of
+                {ok, {_AppContext, Authorization}} ->
+                    {ok, {_AppContext, Response}} = 
+                        oauth2:issue_token_and_refresh(Authorization, none),
+                    {ok, AccessToken} = oauth2_response:access_token(Response),
+                    {ok, Type} = oauth2_response:token_type(Response),
+                    {ok, Expires} = oauth2_response:expires_in(Response),
+                    {ok, RefreshToken} = oauth2_response:refresh_token(
+                                           Response),
+                    {ok, Scope} = oauth2_response:scope(Response),
+                    oauth2_wrq:access_refresh_token_response(ReqData, 
+                                                             AccessToken, 
+                                                             Type,
+                                                             Expires, 
+                                                             RefreshToken, 
+                                                             Scope, 
+                                                             Context);
+                {error, Error} ->
+                    oauth2_wrq:json_error_response(ReqData, Error, Context)
+            end;
+        _ ->
+            oauth2_wrq:json_error_response(ReqData, unsupported_grant_type,
+                                           Context)
     end.

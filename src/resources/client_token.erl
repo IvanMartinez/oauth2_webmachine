@@ -12,12 +12,12 @@
 
 -include_lib("webmachine/include/webmachine.hrl").
 
--record(request, {grant_type                :: binary(),
-                  scope                     :: oauth2:scope() |
-                                               undefined,
-                  client_id = undefined     :: binary() | undefined,
-                  client_secret = undefined :: binary() | undefined 
-                 }).
+-record(request, {grant_type    :: atom(),
+                  scope         :: 
+                      oauth2:scope() | undefined,
+                  client_credentials = {undefined, undefined}
+                                :: {binary() | undefined, 
+                                    binary() | undefined}}).
 
 %% ====================================================================
 %% API functions
@@ -46,34 +46,39 @@ is_authorized(ReqData, Context) ->
     case oauth2_wrq:get_client_credentials(Params, ReqData) of
         undefined ->
             {"Basic", ReqData, Context};
-        {ClientId, ClientSecret} ->
+        ClientCredentials ->
             Request = proplists:get_value(request, Context),
             {true, ReqData, [{authorized_request, 
-                              Request#request{client_id = ClientId,
-                                              client_secret = ClientSecret}} |
-                                Context]}
+                              Request#request{client_credentials = 
+                                                  ClientCredentials}} |
+                                 Context]}
     end.
 
 process_post(ReqData, Context) ->
     #request{grant_type = GrantType,
              scope = Scope,
-             client_id = ClientId,
-             client_secret = ClientSecret} = 
+             client_credentials = ClientCredentials} = 
                 proplists:get_value(authorized_request, Context),
-    case oauth2:authorize_client_credentials(GrantType, ClientId, ClientSecret, 
-                                             Scope, none) of
-        {ok, {_AppContext, Authorization}} ->
-            {ok, {_AppContext, Response}} = 
-                oauth2:issue_token(Authorization, none),
-            {ok, Token} = 
-                oauth2_response:access_token(Response),
-            {ok, Type} = oauth2_response:token_type(Response),
-            {ok, Expires} = 
-                oauth2_response:expires_in(Response),
-            {ok, Scope} = oauth2_response:scope(Response),
-            oauth2_wrq:access_token_response(ReqData, Token,
-                                             Type, Expires,
-                                             Scope, Context);
-        {error, Error} ->
-            oauth2_wrq:json_error_response(ReqData, Error, Context)
+    case GrantType of
+        client_credentials ->
+            case oauth2:authorize_client_credentials(ClientCredentials, Scope, 
+                                                     none) of
+                {ok, {_AppContext, Authorization}} ->
+                    {ok, {_AppContext, Response}} = 
+                        oauth2:issue_token(Authorization, none),
+                    {ok, Token} = 
+                        oauth2_response:access_token(Response),
+                    {ok, Type} = oauth2_response:token_type(Response),
+                    {ok, Expires} = 
+                        oauth2_response:expires_in(Response),
+                    {ok, Scope} = oauth2_response:scope(Response),
+                    oauth2_wrq:access_token_response(ReqData, Token,
+                                                     Type, Expires,
+                                                     Scope, Context);
+                {error, Error} ->
+                    oauth2_wrq:json_error_response(ReqData, Error, Context)
+            end;
+        _ ->
+            oauth2_wrq:json_error_response(ReqData, unsupported_grant_type,
+                Context)
     end.

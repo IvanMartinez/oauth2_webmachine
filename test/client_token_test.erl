@@ -6,9 +6,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(CLIENT_TOKEN_URL, "http://127.0.0.1:8000/client_token").
--define(CLIENT1_ID, "Client1").
+-define(CLIENT1_ID, "ConfidentialClient").
 -define(CLIENT1_SECRET, "Secret1").
--define(CLIENT1_URI, "http://client.uri").
+-define(CLIENT1_URI, "http://cclient.uri").
 -define(CLIENT1_SCOPE, "root.a.1 root.x.y").
 -define(CLIENT1_SCOPE2, "root.a.2").
 -define(BASIC_CREDENTIALS(ID, SECRET), "Basic " ++ 

@@ -18,7 +18,8 @@ Compile and execute with
 
 In order to make the tests below work, a sample client and resource owner must be created. Execute the following commands in the shell of the Erlang instance running the server:
 
-    > oauth2_ets_backend:add_client(<<"Client1">>, <<"Secret1">>, <<"http://client.uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
+    > oauth2_ets_backend:add_client(<<"ConfidentialClient">>, <<"Secret1">>, <<"http://cclient.uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
+    > oauth2_ets_backend:add_client(<<"PublicClient">>, undefined, <<"http://pclient.uri">>, [<<"root.a.*">>, <<"root.x.y">>]).
     > oauth2_ets_backend:add_resowner(<<"User1">>, <<"Password1">>, [<<"root1.z">>, <<"root2.*">>]).
 
 With the server running, execute unit tests in another shell with

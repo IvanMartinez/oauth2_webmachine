@@ -112,6 +112,7 @@ to_html(ReqData, Context) ->
         {{halt, pos_integer()}, #wm_reqdata{}, _}.
 process_post(ReqData, Context) ->
     #request{response_type = ResponseType,
+             client_id = ClientId,
              redirect_uri = RedirectURI,
              scope = Scope,
              state = State,
@@ -119,7 +120,9 @@ process_post(ReqData, Context) ->
         proplists:get_value(request, Context),
     case ResponseType of
         token ->
-            case oauth2:authorize_password(OwnerCredentials, Scope, none) of
+            case oauth2:authorize_password(OwnerCredentials, 
+                                           {ClientId, undefined}, 
+                                           RedirectURI, Scope, none) of
                 {ok, {_AppContext, Authorization}} ->
                     {ok, {_AppContext, Response}} = 
                         oauth2:issue_token(Authorization, none),

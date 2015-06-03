@@ -314,9 +314,10 @@ redirected_authorization_code_response(Request, Uri, Code, State, Context) ->
 
 -spec redirected_error_response(Request :: #wm_reqdata{},
                                 Uri     :: binary(),
-                                Error   :: access_denied | invalid_request |
-                                    invalid_scope | request_timeout | 
-                                    server_error | unauthorized_client |
+                                Error   :: access_denied | invalid_client | 
+                                    invalid_request | invalid_scope | 
+                                    request_timeout | server_error | 
+                                    unauthorized_client | 
                                     unsupported_grant_type |
                                     unsupported_response_type,
                                 State   :: binary(),
@@ -326,6 +327,8 @@ redirected_error_response(Request, Uri, Error, State, Context) ->
     ErrorString = case Error of
                       access_denied ->
                           "access_denied";
+                      invalid_client ->
+                          "invalid_client";
                       invalid_request ->
                           "invalid_request";
                       invalid_scope ->

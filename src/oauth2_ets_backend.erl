@@ -53,7 +53,7 @@
 
 -record(client, {
           client_id     :: binary(),
-          client_secret :: binary(),
+          client_secret :: binary() | undefined,
           redirect_uri  :: binary(),
           scope         :: [binary()]
          }).
@@ -73,7 +73,7 @@
 
 -spec add_client(Id, Secret, RedirectURI, Scope) -> ok when
     Id          :: binary(),
-    Secret      :: binary(),
+    Secret      :: binary() | undefined,
     RedirectURI :: binary(),
     Scope       :: [binary()].
 add_client(Id, Secret, RedirectURI, Scope) ->

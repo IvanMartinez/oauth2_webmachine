@@ -11,9 +11,9 @@
 -define(REFRESH_TOKEN_URL, "http://127.0.0.1:8000/refresh_token").
 -define(PATH, "/access_token").
 -define(STATE, "State").
--define(CLIENT1_ID, "Client1").
+-define(CLIENT1_ID, "ConfidentialClient").
 -define(CLIENT1_SECRET, "Secret1").
--define(CLIENT1_URI, "http://client.uri").
+-define(CLIENT1_URI, "http://cclient.uri").
 -define(CLIENT1_SCOPE, "root1.z root2.a").
 -define(USER1_USERNAME, "User1").
 -define(USER1_PASSWORD, "Password1").

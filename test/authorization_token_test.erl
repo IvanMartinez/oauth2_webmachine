@@ -6,8 +6,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(AUTHORIZATION_TOKEN_URL, "http://127.0.0.1:8000/authorization_token").
--define(CLIENT1_ID, "AnyClient").
--define(CLIENT1_URI, "http://client.uri").
+-define(CLIENT1_ID, "PublicClient").
+-define(CLIENT1_URI, "http://pclient.uri").
 -define(USER1_SCOPE, "root1.z root2.a").
 -define(USER1_USERNAME, "User1").
 -define(USER1_PASSWORD, "Password1").

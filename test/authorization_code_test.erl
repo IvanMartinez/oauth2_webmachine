@@ -6,8 +6,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(AUTHORIZATION_CODE_URL, "http://127.0.0.1:8000/authorization_code").
--define(CLIENT1_ID, "Client1").
--define(CLIENT1_URI, "http://client.uri").
+-define(CLIENT1_ID, "ConfidentialClient").
+-define(CLIENT1_URI, "http://cclient.uri").
 -define(CLIENT1_SCOPE, "root1.z root2.a").
 -define(USER1_USERNAME, "User1").
 -define(USER1_PASSWORD, "Password1").
